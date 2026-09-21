@@ -20,7 +20,7 @@ export const PdfExportTemplate = forwardRef<HTMLDivElement, Props>(({ events, dd
   return (
     <div className="absolute -left-[9999px] top-0">
       <div ref={ref} className="p-10 bg-white text-black w-[800px] min-h-[1122px] font-sans">
-        <h1 className="text-3xl font-bold mb-2 text-center text-zinc-900">AI 학습 플래너</h1>
+        <h1 className="text-3xl font-bold mb-2 text-center text-zinc-900">FocusFlow_AI 학습 플래너</h1>
         <p className="text-center text-zinc-500 mb-8">시작일: {startDate} | D-{dday}</p>
 
         <div className="space-y-6">

@@ -11,6 +11,7 @@ import DashboardView from "./components/DashboardView";
 import PomodoroWidget from "./components/PomodoroWidget";
 import LandingView from "./components/LandingView";
 import { PdfExportTemplate } from "./components/PdfExportTemplate";
+import { LogoWordmark } from "./components/Logo";
 import {
   Calendar,
   List,
@@ -349,12 +350,7 @@ export default function App() {
         className={`fixed md:static inset-y-0 left-0 z-50 w-72 bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-xl border-r border-zinc-200/80 dark:border-zinc-800/80 flex flex-col transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-zinc-200/80 dark:border-zinc-800/80 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary-600 rounded-xl flex items-center justify-center shadow-sm shadow-primary-500/20">
-              <Calendar className="w-4 h-4 text-white" />
-            </div>
-            <h1 className="text-[17px] font-bold tracking-tight text-zinc-900 dark:text-white">FocusFlow_AI</h1>
-          </div>
+          <LogoWordmark markClassName="w-5 h-5" />
           <button
             className="md:hidden text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             onClick={() => setIsSidebarOpen(false)}

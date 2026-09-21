@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
+import Logo, { LogoWordmark } from "./Logo";
 import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT, pressable } from "../lib/motion";
 import { Calendar, Sparkles, LayoutGrid, BarChart3, Clock, ArrowRight } from "lucide-react";
 
@@ -12,14 +13,7 @@ export default function LandingView({ onStart }: LandingViewProps) {
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-primary-500/30 font-sans overflow-y-auto">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200/80 dark:border-zinc-800/80 z-50 flex items-center justify-between px-6 sm:px-12">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-primary-600 rounded-xl flex items-center justify-center shadow-sm shadow-primary-500/20">
-            <Calendar className="w-4 h-4 text-white" />
-          </div>
-          <h1 className="text-[17px] font-bold tracking-tight text-zinc-900 dark:text-white">
-            FocusFlow_AI
-          </h1>
-        </div>
+        <LogoWordmark markClassName="w-5 h-5" />
         <button
           onClick={onStart}
           className="text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
@@ -35,6 +29,9 @@ export default function LandingView({ onStart }: LandingViewProps) {
         initial="hidden"
         animate="show"
       >
+        <motion.div variants={riseIn} className="mb-8">
+          <Logo className="w-20 h-20 text-primary-600 dark:text-primary-400" variant="gradient" />
+        </motion.div>
         <motion.div variants={riseIn} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-medium mb-8 border border-primary-100/50 dark:border-primary-800/30">
           <Sparkles className="w-4 h-4" />
           <span>AI 기반 맞춤형 학습 플래너</span>

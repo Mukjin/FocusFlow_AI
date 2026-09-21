@@ -1,5 +1,8 @@
 export type AppTheme = 'indigo' | 'rose' | 'emerald' | 'amber' | 'violet';
 
+/** 목표 성격. 규칙 엔진이 기본 할 일 문구를 고를 때 쓴다. */
+export type GoalKind = 'exam' | 'language' | 'reading';
+
 export interface StudyEvent {
   id: number;
   date: string; // "YYYY-MM-DD"
@@ -12,6 +15,10 @@ export interface StudyEvent {
   colorIndex: number;
   aiEnhanced?: boolean;
   completed?: boolean;
+  /** 완료를 누른 시각(ISO). 연속 학습일 계산의 근거가 된다. */
+  completedAt?: string;
+  /** 규칙 엔진이 자동 삽입한 복습 일정 */
+  isReview?: boolean;
   referenceLink?: string;
 }
 
@@ -20,6 +27,7 @@ export interface PlannerState {
   startDate: string;
   goals: string[];
   goalImportance?: Record<string, number>;
+  goalKinds?: Record<string, GoalKind>;
   timePerDay: string;
   prefTime: string;
   restDay: string;

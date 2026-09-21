@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { PlannerState, StudyEvent, AppTheme } from '../types';
+import { PlannerState, AppTheme } from '../types';
 
 export const usePlannerStore = create<PlannerState>((set) => ({
   dday: 30,
   startDate: new Date().toISOString().split('T')[0],
   goals: [],
   goalImportance: {},
+  goalKinds: {},
   timePerDay: '2시간',
   prefTime: '저녁',
   restDay: '없음',
@@ -38,7 +39,12 @@ export const usePlannerStore = create<PlannerState>((set) => ({
     events: state.events.filter((e) => e.id !== id)
   })),
   toggleEventCompletion: (id) => set((state) => ({
-    events: state.events.map((e) => e.id === id ? { ...e, completed: !e.completed } : e)
+    events: state.events.map((e) => {
+      if (e.id !== id) return e;
+      const completed = !e.completed;
+      // 완료 시각을 남겨야 '며칠 연속으로 했는지'를 계산할 수 있다
+      return { ...e, completed, completedAt: completed ? new Date().toISOString() : undefined };
+    })
   })),
   setFullState: (state) => set((prev) => ({ ...prev, ...state }))
 }));

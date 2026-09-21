@@ -1,5 +1,5 @@
 import { addDays, format, getDay } from 'date-fns';
-import { StudyEvent } from '../types';
+import { StudyEvent, GoalKind } from '../types';
 import { formatMinutesToDuration } from './duration';
 
 function parseTimeToMinutes(timeStr: string): number {
@@ -27,11 +27,33 @@ function formatTime(minutes: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+const TASK_TEMPLATES: Record<GoalKind, Record<'기초' | '심화' | '마무리', (subject: string) => string>> = {
+  exam: {
+    기초: (s) => `${s} 핵심 개념 정리 및 이론 학습`,
+    심화: (s) => `${s} 기출문제 풀이 및 오답 노트`,
+    마무리: (s) => `${s} 실전 모의고사 및 최종 점검`,
+  },
+  language: {
+    기초: (s) => `${s} 기본 어휘·문법 다지기`,
+    심화: (s) => `${s} 실전 문제 풀이 및 오답 분석`,
+    마무리: (s) => `${s} 실전 모의고사 및 취약 파트 보완`,
+  },
+  reading: {
+    기초: (s) => `${s} 읽기 — 배경 파악하며 정독`,
+    심화: (s) => `${s} 읽기 — 핵심 문장 발췌 및 메모`,
+    마무리: (s) => `${s} 완독 마무리 — 서평·요약 정리`,
+  },
+};
+
+/** 복습 간격(일). 한 번 배운 내용을 잊기 전에 다시 꺼내보게 한다. */
+const REVIEW_INTERVAL_DAYS = 7;
+
 export function generateRuleBasedEvents(
   dday: number,
   startDateStr: string,
   goals: string[],
   goalImportance: Record<string, number>,
+  goalKinds: Record<string, GoalKind>,
   timePerDay: string,
   restDay: string,
   prefTime: string
@@ -84,11 +106,8 @@ export function generateRuleBasedEvents(
       const endTime = formatTime(currentDayMinutes + minutesPerGoal);
       currentDayMinutes += minutesPerGoal;
       
-      // Generate basic task
-      let task = '';
-      if (phase === '기초') task = `${subject} 핵심 개념 정리 및 이론 학습`;
-      else if (phase === '심화') task = `${subject} 기출문제 풀이 및 오답 노트`;
-      else if (phase === '마무리') task = `${subject} 실전 모의고사 및 최종 점검`;
+      const kind: GoalKind = goalKinds[subject] || 'exam';
+      const task = TASK_TEMPLATES[kind][phase](subject);
       
       events.push({
         date: format(currentDate, 'yyyy-MM-dd'),
@@ -103,7 +122,30 @@ export function generateRuleBasedEvents(
         completed: false
       });
     }
+
+    // 7일마다 그 주에 배운 내용을 다시 꺼내보는 복습 일정을 자동으로 끼워 넣는다.
+    // 계획을 세워주는 데서 끝내지 않고, 배운 것이 남도록 되짚어주는 역할.
+    const isReviewDay = i > 0 && (i + 1) % REVIEW_INTERVAL_DAYS === 0;
+    if (isReviewDay) {
+      const weekNumber = Math.floor(i / REVIEW_INTERVAL_DAYS) + 1;
+      const reviewMinutes = Math.max(20, Math.round((dailyMinutes * 0.25) / 5) * 5);
+      const reviewStart = currentDayMinutes;
+
+      events.push({
+        date: format(currentDate, 'yyyy-MM-dd'),
+        startTime: formatTime(reviewStart),
+        endTime: formatTime(reviewStart + reviewMinutes),
+        subject: goals.length === 1 ? goals[0] : '전체 복습',
+        task: `${weekNumber}주차 복습 — 이번 주에 공부한 내용 다시 훑고 헷갈린 부분만 표시하기`,
+        duration: formatMinutesToDuration(reviewMinutes),
+        phase,
+        colorIndex: goals.length,
+        aiEnhanced: false,
+        completed: false,
+        isReview: true,
+      });
+    }
   }
-  
+
   return events;
 }

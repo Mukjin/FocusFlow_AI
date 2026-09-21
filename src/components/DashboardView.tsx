@@ -4,7 +4,8 @@ import { usePlannerStore } from '../store/plannerStore';
 import { CountUp, AnimatedBar } from './motion/Primitives';
 import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT } from '../lib/motion';
 import { parseDurationToMinutes } from '../lib/duration';
-import { CheckCircle2, Clock, Target, TrendingUp, BookOpen, Calendar as CalendarIcon, Award } from 'lucide-react';
+import { getCurrentStreak, getLongestStreak, getRecentActivity } from '../lib/streak';
+import { CheckCircle2, Clock, Target, TrendingUp, BookOpen, Calendar as CalendarIcon, Award, Flame, Repeat } from 'lucide-react';
 import { format, parseISO, isSameDay } from 'date-fns';
 
 export default function DashboardView() {
@@ -37,6 +38,13 @@ export default function DashboardView() {
     const today = new Date();
     return events.filter(e => isSameDay(parseISO(e.date), today));
   }, [events]);
+
+  // 실제로 완료를 누른 기록만 근거로 삼는다 (계획된 날짜가 아니라)
+  const streak = useMemo(() => getCurrentStreak(events), [events]);
+  const longestStreak = useMemo(() => getLongestStreak(events), [events]);
+  const recentActivity = useMemo(() => getRecentActivity(events, 14), [events]);
+  const maxActivity = Math.max(1, ...recentActivity.map(d => d.count));
+  const reviewCount = events.filter(e => e.isReview).length;
 
   const todayCompleted = todayEvents.filter(e => e.completed).length;
   const todayRate = todayEvents.length > 0 ? Math.round((todayCompleted / todayEvents.length) * 100) : 0;
@@ -160,6 +168,69 @@ export default function DashboardView() {
               </div>
             </div>
           </div>
+
+          {/* 연속 학습일 — '계획'이 아니라 '실제로 한 기록'을 보여주는 자리 */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.1 }}
+            className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Flame className="w-6 h-6 text-orange-500" />
+                연속 학습일
+              </h2>
+              {reviewCount > 0 && (
+                <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-100 dark:border-violet-800/50">
+                  <Repeat className="w-3.5 h-3.5" />
+                  복습 {reviewCount}회 자동 배치됨
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-end gap-8 mb-8">
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-5xl font-bold text-zinc-900 dark:text-white tracking-tight">
+                    <CountUp value={streak} duration={1.2} />
+                  </span>
+                  <span className="text-lg font-medium text-zinc-500 dark:text-zinc-400">일째</span>
+                </div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  {streak > 0 ? '이어서 하고 있어요' : '오늘 하나만 체크하면 시작됩니다'}
+                </p>
+              </div>
+              <div className="pb-1">
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">최장 기록</p>
+                <p className="text-xl font-bold text-zinc-700 dark:text-zinc-300">{longestStreak}일</p>
+              </div>
+            </div>
+
+            <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500 mb-3 uppercase tracking-wider">
+              최근 14일
+            </p>
+            <div className="flex items-end gap-1.5 h-20">
+              {recentActivity.map((day, i) => (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
+                  <motion.div
+                    className={`w-full rounded-md ${
+                      day.count > 0
+                        ? 'bg-orange-400 dark:bg-orange-500'
+                        : 'bg-zinc-100 dark:bg-zinc-800'
+                    } ${day.isToday ? 'ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900' : ''}`}
+                    initial={{ height: 0 }}
+                    animate={{ height: day.count > 0 ? `${Math.max(18, (day.count / maxActivity) * 100)}%` : '6px' }}
+                    transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.2 + i * 0.03 }}
+                    title={`${day.date} · ${day.count}개 완료`}
+                  />
+                  <span className={`text-[10px] ${day.isToday ? 'font-bold text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                    {day.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
 
           {/* Subject Breakdown */}
           <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80">

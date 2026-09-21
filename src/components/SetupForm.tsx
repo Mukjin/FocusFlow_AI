@@ -1,33 +1,48 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
+import type { GoalKind } from '../types';
 import { generateRuleBasedEvents } from '../lib/ruleEngine';
 import { enhanceEventsWithGemini } from '../lib/geminiClient';
 import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X, CheckCircle2, Circle, AlertCircle, Check } from 'lucide-react';
 import { DURATION, EASE_OUT, SPRING, pressable } from '../lib/motion';
 
-const GOAL_CATEGORIES = [
+const GOAL_CATEGORIES: { category: string; kind: GoalKind; options: string[] }[] = [
   {
     category: '프로그래밍',
+    kind: 'exam',
     options: ['코딩테스트', 'Python', 'Java', 'C++', 'JavaScript', 'React', 'Spring Boot']
   },
   {
     category: '자격증 (IT/데이터)',
+    kind: 'exam',
     options: ['정보처리기사', 'ADsP', 'SQLD', '빅데이터분석기사', 'AWS 자격증']
   },
   {
     category: '어학',
+    kind: 'language',
     options: ['토익', '오픽(OPIc)', '토익스피킹', 'JLPT', 'HSK']
   },
   {
     category: '자격증 (일반)',
+    kind: 'exam',
     options: ['한국사능력검정시험', '컴퓨터활용능력', '전산세무회계', '공인중개사']
   },
   {
     category: '시험/고시',
+    kind: 'exam',
     options: ['수능', '공무원 시험', '임용고시', '중간고사', '기말고사']
+  },
+  {
+    category: '독서',
+    kind: 'reading',
+    options: ['독서 습관 만들기', '전공 서적 완독', '고전 읽기', '자기계발서', '영어 원서 읽기']
   }
 ];
+
+const KIND_BY_GOAL: Record<string, GoalKind> = Object.fromEntries(
+  GOAL_CATEGORIES.flatMap((c) => c.options.map((o) => [o, c.kind]))
+);
 
 const TIME_OPTIONS = ['30분', '40분', '1시간', '1.5시간', '2시간', '3시간', '4시간', '5시간+'];
 const PREF_TIMES = ['아침', '오전', '오후', '저녁', '혼합'];
@@ -42,6 +57,7 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
   const [startDate, setStartDate] = useState(store.startDate);
   const [goals, setGoals] = useState<string[]>(store.goals);
   const [goalImportance, setGoalImportance] = useState<Record<string, number>>(store.goalImportance || {});
+  const [goalKinds, setGoalKinds] = useState<Record<string, GoalKind>>(store.goalKinds || {});
   const [customGoal, setCustomGoal] = useState('');
   const [timePerDay, setTimePerDay] = useState(store.timePerDay);
   const [prefTime, setPrefTime] = useState(store.prefTime);
@@ -63,6 +79,7 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
     } else {
       setGoals([...goals, goal]);
       setGoalImportance({ ...goalImportance, [goal]: 2 });
+      setGoalKinds({ ...goalKinds, [goal]: KIND_BY_GOAL[goal] || 'exam' });
     }
   };
 
@@ -71,6 +88,8 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
       const newGoal = customGoal.trim();
       setGoals([...goals, newGoal]);
       setGoalImportance({ ...goalImportance, [newGoal]: 2 });
+      // 직접 추가한 목표는 성격을 알 수 없으므로 가장 무난한 시험형으로 둔다
+      setGoalKinds({ ...goalKinds, [newGoal]: 'exam' });
       setCustomGoal('');
     }
   };
@@ -93,6 +112,7 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
         startDate,
         goals,
         goalImportance,
+        goalKinds,
         timePerDay,
         prefTime,
         restDay,
@@ -100,7 +120,7 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
       });
 
       // Step 1: Rule-based generation (결정론적 뼈대)
-      const ruleEvents = generateRuleBasedEvents(dday, startDate, goals, goalImportance, timePerDay, restDay, prefTime);
+      const ruleEvents = generateRuleBasedEvents(dday, startDate, goals, goalImportance, goalKinds, timePerDay, restDay, prefTime);
       setRuleCount(ruleEvents.length);
 
       // 1단계 완료가 화면에 인지되도록 짧게 머문 뒤 2단계로 넘어간다
