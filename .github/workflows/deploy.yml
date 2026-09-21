@@ -36,6 +36,7 @@ jobs:
       #    먼저 옮겨야 한다. (README 의 보안 주의 참고)
       - run: npm run build
         env:
+          DEPLOY_TARGET: gh-pages
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
