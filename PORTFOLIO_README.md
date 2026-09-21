@@ -1,50 +1,149 @@
-# FocusFlow_AI
+# FocusFlow_AI — 설계 노트
 
-> **Rule Engine과 LLM을 결합하여 환각(Hallucination)을 통제하고, 신뢰할 수 있는 학습 플랜을 자동 생성하는 AI-Native 플래너**
+> **한 줄 요약:** LLM에게 학습 계획을 통째로 맡기지 않고, 결정론적 규칙 엔진이 만든 뼈대 안의 내용만 채우게 역할을 분리했습니다.
 
-## 1. 프로젝트 개요
-기존 AI 기반 서비스들은 매번 결과 구조가 달라지거나 존재하지 않는 가짜 정보를 제공하는 등 데이터 신뢰성 문제가 있었습니다. FocusFlow_AI는 **결정론적(Rule Engine) 뼈대 위에 확률론적(LLM) 유연성을 결합**하여, 시스템이 100% 통제할 수 있는 예측 가능한 AI 파이프라인을 구축하는 데 집중한 프로젝트입니다.
+---
 
-## 2. 시스템 아키텍처
+## 1. 풀려고 한 문제
 
-```mermaid
-graph TD
-    Client[Client / Multi-View UI] --> State[Zustand State Manager]
-    
-    State --> RuleEngine[Rule Engine: Plan Skeleton]
-    State --> AI[Gemini API + Search Grounding]
-    
-    AI --> Parser[Robust JSON Parser]
-    Parser --> State
-    
-    State -->|1.5s Debounced Sync| DB[(Supabase / PostgreSQL JSONB)]
+챗봇에게 "토익 30일 계획 짜줘"라고 하면 다음 문제가 반복됩니다.
+
+1. **같은 질문에 매번 다른 구조의 답이 나온다** — 표였다가 목록이었다가 문단이 된다
+2. **요청한 일수와 실제 일정 개수가 맞지 않는다** — 30일을 요청해도 26일치만 나오거나 중간이 비어 있다
+3. **일정이 밀렸을 때 손댈 수가 없다** — 텍스트 덩어리라 하루를 미루면 전체를 다시 물어봐야 한다
+
+세 문제 모두 **"일정의 구조"까지 LLM에게 맡긴 것**이 원인이라고 봤습니다.
+
+---
+
+## 2. 접근: 구조와 내용의 분리
+
+일정을 두 층으로 나눴습니다.
+
+| 층 | 담당 | 성격 | 구현 |
+|---|---|---|---|
+| **구조** — 며칠째에 어떤 과목을 몇 분, 몇 시에, 어느 단계로 | 규칙 엔진 | 결정론적 | `src/lib/ruleEngine.ts` |
+| **내용** — 그 칸에서 구체적으로 무엇을 공부할지, 무엇을 참고할지 | Gemini | 확률론적 | `src/lib/geminiClient.ts` |
+
+### 규칙 엔진이 확정하는 것 (`generateRuleBasedEvents`)
+
+- D-Day를 날짜 단위로 분할하고 `restDay` 설정에 따라 쉬는 요일 제외
+- 진행률 40% / 75%를 경계로 **기초 → 심화 → 마무리** 단계 배정
+- 목표별 중요도(낮음 1 / 보통 2 / 높음 3)를 가중치로 하루 가용 시간을 비례 배분, 5분 단위 반올림
+- 마지막 과목에 나머지 시간을 몰아주어 **배분 합이 하루 시간과 정확히 일치**하도록 보정
+- 선호 시간대(아침 07시 / 오전 09시 / 오후 13시 / 저녁 19시)를 시작점으로 시작·종료 시각 계산
+- 토요일은 가용 시간 1.5배
+
+이 단계가 끝나면 일정 개수·날짜·시각이 전부 확정됩니다. 여기까지는 외부 호출이 없어 즉시 끝납니다.
+
+### LLM에게 넘기는 것 (`enhanceEventsWithGemini`)
+
+구조를 지키게 하려고 프롬프트에 **필요한 개수를 데이터로 박아 넣었습니다.**
+
+```ts
+// 과목·단계별로 필요한 task가 몇 개인지 먼저 집계한다
+const subjectPhaseCounts: Record<string, Record<string, number>> = {};
+events.forEach((e) => {
+  if (!subjectPhaseCounts[e.subject]) subjectPhaseCounts[e.subject] = {};
+  if (!subjectPhaseCounts[e.subject][e.phase]) subjectPhaseCounts[e.subject][e.phase] = 0;
+  subjectPhaseCounts[e.subject][e.phase]++;
+});
 ```
 
-## 3. 핵심 엔지니어링 판단 및 문제 해결
+이 맵을 프롬프트에 JSON으로 넣고 *"배열의 길이는 요청한 개수와 정확히 일치해야 합니다"* 를 명시합니다.
 
-### A. AI 신뢰성 확보: 환각 통제 및 파싱 최적화
-*   **판단:** LLM의 텍스트 응답을 시스템 데이터로 변환하려면 엄격한 제어 장치가 필수적이라고 판단했습니다.
-*   **구현:** 
-    *   `Search Grounding`을 강제하여 실제 존재하는 공식 문서/유튜브 링크만 반환하도록 제어했습니다.
-    *   마크다운과 텍스트가 혼재된 응답에서 순수 JSON 배열만 추출하는 정규식 기반 재귀 파서를 직접 구현했습니다.
-*   **결과:** 가짜 링크(Dead Link) 생성률 0%, JSON 파싱 실패율 0% 달성.
+그리고 받은 응답을 **하나씩 꺼내 쓰는(`shift`) 방식**으로 주입합니다.
 
-### B. 비정형 AI 데이터 모델링: JSONB 도입
-*   **판단:** AI가 생성하는 가변적인 메타데이터(난이도, 세부 단계 등)를 RDBMS에 정규화할 경우, 잦은 스키마 변경과 복잡한 JOIN으로 인한 성능 저하가 예상되었습니다.
-*   **구현:** 핵심 식별자(User ID, Date 등)만 정규화하여 인덱스를 적용하고, AI 생성 데이터는 PostgreSQL의 `JSONB` 타입으로 저장하는 하이브리드 모델링을 채택했습니다.
-*   **결과:** 스키마 변경 없는 유연한 확장성 확보 및 복잡한 JOIN 제거로 Read Latency 40% 단축.
+```ts
+const assignedTask = taskMap[subj][ph].shift();
+if (assignedTask) {
+  newTask = assignedTask.task || event.task;          // 모자라면 원래 task 유지
+  newReferenceLink = assignedTask.referenceLink || event.referenceLink;
+}
+```
 
-### C. 다중 뷰 상태 동기화 및 DB 부하 최적화
-*   **판단:** 캘린더, 칸반 보드 등 다중 뷰 환경에서 발생하는 잦은 UI 인터랙션(Drag & Drop 등)을 매번 DB에 반영하면 API 폭주가 발생합니다.
-*   **구현:** Zustand를 활용해 Client-driven으로 UI를 즉각 업데이트(Optimistic UI)하고, DB 영속성은 **1.5초 Debounce**를 적용해 최종 상태만 병합(Upsert)하도록 구현했습니다.
-*   **결과:** 불필요한 DB Write 요청 90% 감소 및 UI 블로킹 현상 완벽 제거.
+덕분에 **LLM이 개수를 틀려도 일정이 사라지거나 늘어나지 않습니다.** 모자라면 규칙 엔진이 만든 기본 문구가 그대로 남습니다.
 
-## 4. 기술 스택
-*   **Language & Core:** TypeScript, React 19, Vite
-*   **State Management:** Zustand
-*   **AI Integration:** Google Gemini 3.1 Flash (`@google/genai`), Search Grounding
-*   **Backend & DB:** Supabase (`@supabase/supabase-js`), PostgreSQL (JSONB)
+### 참고 링크: 검색 그라운딩
 
-## 5. Trade-off 및 향후 계획
-*   **BaaS(Supabase) 선택의 Trade-off:** 초기 MVP 검증 속도를 극대화하기 위해 BaaS를 선택했습니다. PostgreSQL의 JSONB를 즉시 활용할 수 있는 장점이 컸으나, 복잡한 트랜잭션 제어나 커스텀 미들웨어 적용에는 한계가 있음을 인지하고 있습니다.
-*   **Next Step:** 트래픽 증가 및 도메인 로직 고도화 시, 현재의 클라이언트 주도 로직을 Spring Boot 기반의 독립적인 마이크로서비스로 분리할 수 있도록 도메인 로직 모듈화를 진행해 두었습니다.
+할 일마다 실제로 존재하는 참고 자료를 붙이기 위해 `googleSearch` 툴을 켰습니다.
+
+```ts
+const response = await ai.models.generateContent({
+  model: "gemini-3-flash-preview",
+  contents: prompt,
+  config: { tools: [{ googleSearch: {} }] },
+});
+```
+
+생성된 링크는 캘린더 상세 패널 · 칸반 카드 · 목록 뷰 · PDF 출력에 모두 노출됩니다.
+
+---
+
+## 3. 실패를 전제로 한 폴백
+
+외부 API는 실패합니다. 키가 없을 수도, 할당량이 끝났을 수도, 응답이 JSON이 아닐 수도 있습니다.
+
+**3단계 방어를 뒀습니다.**
+
+1. **파싱 폴백** (`geminiClient.ts`) — 응답에서 JSON 배열을 정규식으로 추출 → 실패 시 객체 패턴 → 실패 시 코드펜스 제거 → 객체로 감싸져 있으면 `tasks` / `data` / 임의의 배열 프로퍼티 순으로 탐색
+2. **호출 폴백** (`SetupForm.tsx`) — Gemini 호출만 별도 try/catch로 감싸 실패해도 규칙 엔진 결과를 그대로 저장
+3. **저장 폴백** (`supabase.ts`) — 환경변수가 없으면 no-op 클라이언트로 대체해 앱이 죽지 않게 함
+
+사용자에게는 브라우저 `alert()` 대신 **상단 배너**로 상황을 알립니다. 무엇이 실패했고 지금 무엇을 쓸 수 있는지 함께 적습니다.
+
+> 예: *"AI 구체화에 실패해 규칙 엔진 기본 일정 30개로 생성했습니다. Gemini API 키를 확인한 뒤 'AI 할 일 구체화'를 눌러주세요."*
+
+---
+
+## 4. 생성 과정을 화면에 드러내기
+
+파이프라인이 2단계라는 사실 자체가 이 프로젝트의 설계 의도입니다. 로딩 스피너 하나로 뭉뚱그리면 사용자는 그냥 "AI가 다 해줬다"고 오해합니다.
+
+그래서 생성 중 화면을 두 줄로 나눠 **어디까지 규칙이고 어디부터 AI인지** 보이게 했습니다.
+
+```
+✅ ① 규칙 엔진 · 일정 뼈대 생성            30개 완료
+     날짜 · 시간대 · 소요시간 · 기초/심화/마무리 단계 계산
+     ┆
+⟳  ② Gemini · 할 일 내용 + 참고자료 검색
+     뼈대는 그대로 두고, 각 칸의 내용만 채웁니다
+```
+
+①이 끝난 뒤 700ms 머물렀다가 ②로 넘어갑니다. 규칙 엔진은 즉시 끝나기 때문에, 이 간격이 없으면 사용자가 1단계를 인지하지 못합니다.
+
+---
+
+## 5. 상태 관리와 저장
+
+- **Zustand 단일 스토어** — 캘린더·칸반·통계·목록이 같은 `events` 배열을 본다. 칸반에서 카드를 옮기면 캘린더 날짜가 즉시 바뀐다
+- **낙관적 UI** — 드래그·완료 체크는 로컬 상태를 먼저 갱신
+- **1.5초 디바운스 저장** — 연속된 드래그마다 네트워크 요청이 나가지 않도록 마지막 상태만 `upsert`
+
+```ts
+const saveTimeout = setTimeout(async () => { /* upsert */ }, 1500);
+return () => clearTimeout(saveTimeout);
+```
+
+- **인증 없는 식별** — `crypto.randomUUID()`로 만든 기기 ID를 `localStorage`에 보관. 가입 절차 없이 새로고침해도 플랜이 유지된다
+
+---
+
+## 6. 한계와 다음 단계
+
+솔직하게 적어둡니다.
+
+| 한계 | 내용 |
+|---|---|
+| **백엔드가 없다** | 모든 로직이 브라우저에서 돈다. Gemini API 키가 클라이언트에 노출되므로 공개 서비스로는 쓸 수 없다. 서버 프록시가 필요하다 |
+| **학습 데이터가 누적되지 않는다** | 저장이 `user_id` 1행 통째 덮어쓰기라 이력이 없다. 완료 시각·실제 공부 시간을 기록하지 않아 "실제 학습 시간"은 완료 체크된 일정의 *계획* 시간 합이다 |
+| **개인화가 없다** | 위 한계 때문에 "이 사람은 심화 단계에서 자주 밀린다" 같은 피드백 루프를 만들 수 없다 |
+| **로그인이 없다** | 기기를 바꾸면 데이터를 이어받지 못한다. RLS 정책도 anon 전체 허용이라 개인 프로젝트 범위를 벗어나면 위험하다 |
+| **테스트가 없다** | 규칙 엔진은 순수 함수라 단위 테스트를 붙이기 좋은 구조인데 아직 없다 |
+
+**다음에 할 것 (우선순위 순)**
+
+1. `ruleEngine.ts` 단위 테스트 — 시간 배분 합이 하루 시간과 일치하는지, 쉬는 요일이 제외되는지
+2. 완료 이벤트를 별도 테이블에 append해 학습 로그 누적 (지금의 통째 덮어쓰기와 분리)
+3. Gemini 호출을 서버 함수로 옮겨 키 노출 제거
+4. 누적된 로그를 근거로 다음 플랜의 시간 배분을 조정하는 피드백 루프

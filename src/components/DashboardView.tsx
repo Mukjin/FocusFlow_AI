@@ -1,5 +1,8 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
+import { CountUp, AnimatedBar } from './motion/Primitives';
+import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT } from '../lib/motion';
 import { CheckCircle2, Clock, Target, TrendingUp, BookOpen, Calendar as CalendarIcon, Award } from 'lucide-react';
 import { format, parseISO, isSameDay } from 'date-fns';
 
@@ -49,8 +52,13 @@ export default function DashboardView() {
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-6 space-y-8">
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
+        variants={staggerParent(STAGGER.card)}
+        initial="hidden"
+        animate="show"
+      >
+        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-primary-50 dark:bg-primary-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
@@ -60,13 +68,13 @@ export default function DashboardView() {
             </div>
             <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">총 학습 목표</h3>
             <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">{totalEvents}</p>
+              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={totalEvents} /></p>
               <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">개</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
+        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
@@ -76,13 +84,13 @@ export default function DashboardView() {
             </div>
             <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">완료한 학습</h3>
             <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">{completedEvents}</p>
+              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completedEvents} /></p>
               <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">개</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
+        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
@@ -92,13 +100,13 @@ export default function DashboardView() {
             </div>
             <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">전체 달성률</h3>
             <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">{completionRate}</p>
+              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completionRate} /></p>
               <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">%</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
+        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-50 dark:bg-amber-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
@@ -108,14 +116,14 @@ export default function DashboardView() {
             </div>
             <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">총 학습 시간</h3>
             <div className="flex items-baseline gap-1">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">{Math.floor(completedDurationMinutes / 60)}</p>
+              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={Math.floor(completedDurationMinutes / 60)} /></p>
               <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mr-1">시간</span>
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">{completedDurationMinutes % 60}</p>
+              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completedDurationMinutes % 60} /></p>
               <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">분</span>
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Progress Section */}
@@ -136,14 +144,11 @@ export default function DashboardView() {
                 <span className="text-zinc-500 dark:text-zinc-400">진행률</span>
                 <span className="text-zinc-900 dark:text-white">{todayCompleted} / {todayEvents.length} 완료</span>
               </div>
-              <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full transition-all duration-1000 ease-out relative"
-                  style={{ width: `${todayRate}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                </div>
-              </div>
+              <AnimatedBar
+                percent={todayRate}
+                trackClassName="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden"
+                className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -152,14 +157,14 @@ export default function DashboardView() {
                   <CalendarIcon className="w-4 h-4" />
                   <span className="text-sm font-medium">오늘의 일정</span>
                 </div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-white">{todayEvents.length}개</p>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-white"><CountUp value={todayEvents.length} duration={0.8} />개</p>
               </div>
               <div className="p-4 rounded-2xl bg-zinc-50/80 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50">
                 <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-2">
                   <CheckCircle2 className="w-4 h-4" />
                   <span className="text-sm font-medium">남은 일정</span>
                 </div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-white">{todayEvents.length - todayCompleted}개</p>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-white"><CountUp value={todayEvents.length - todayCompleted} duration={0.8} />개</p>
               </div>
             </div>
           </div>
@@ -171,10 +176,16 @@ export default function DashboardView() {
               과목별 학습 통계
             </h2>
             <div className="space-y-5">
-              {subjectStats.map(([subject, stats]) => {
+              {subjectStats.map(([subject, stats], i) => {
                 const rate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 return (
-                  <div key={subject} className="group">
+                  <motion.div
+                    key={subject}
+                    className="group"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.15 + i * STAGGER.card }}
+                  >
                     <div className="flex justify-between items-end mb-2">
                       <div>
                         <h4 className="font-bold text-zinc-800 dark:text-zinc-200">{subject}</h4>
@@ -189,13 +200,13 @@ export default function DashboardView() {
                         </p>
                       </div>
                     </div>
-                    <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-1000 ease-out group-hover:brightness-110"
-                        style={{ width: `${rate}%` }}
-                      ></div>
-                    </div>
-                  </div>
+                    <AnimatedBar
+                      percent={rate}
+                      delay={0.25 + i * STAGGER.card}
+                      trackClassName="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden"
+                      className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full group-hover:brightness-110"
+                    />
+                  </motion.div>
                 );
               })}
               {subjectStats.length === 0 && (
@@ -216,7 +227,7 @@ export default function DashboardView() {
             <div className="relative z-10">
               <h3 className="text-lg font-medium text-primary-100 mb-1">전체 진행 상황</h3>
               <div className="flex items-end gap-2 mb-6">
-                <span className="text-5xl font-bold tracking-tight">{completionRate}</span>
+                <span className="text-5xl font-bold tracking-tight"><CountUp value={completionRate} duration={1.4} /></span>
                 <span className="text-xl font-medium text-primary-200 mb-1">%</span>
               </div>
               

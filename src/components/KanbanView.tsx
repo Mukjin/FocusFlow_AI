@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { format, isAfter, parseISO, startOfDay, addDays } from 'date-fns';
 import { Sparkles, CheckCircle2, Circle, Clock, Calendar as CalendarIcon, GripVertical, Inbox, ExternalLink } from 'lucide-react';
 import { StudyEvent } from '../types';
+import { DURATION, EASE_OUT, SPRING } from '../lib/motion';
 
 const COLORS = [
   'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800',
@@ -104,12 +106,18 @@ export default function KanbanView() {
   };
 
   const renderEventCard = (event: StudyEvent) => (
-    <div
+    <motion.div
       key={event.id}
+      layout
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: DURATION.fast } }}
+      transition={{ duration: DURATION.base, ease: EASE_OUT }}
+      whileHover={{ y: -3, transition: SPRING }}
       draggable
-      onDragStart={(e) => handleDragStart(e, event.id)}
+      onDragStart={(e: React.DragEvent) => handleDragStart(e, event.id)}
       onDragEnd={handleDragEnd}
-      className={`group relative p-4 mb-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 cursor-grab active:cursor-grabbing transition-all hover:shadow-md hover:border-primary-200 dark:hover:border-primary-800/50 ${
+      className={`group relative p-4 mb-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary-200 dark:hover:border-primary-800/50 ${
         draggedEventId === event.id ? 'opacity-40 scale-95 shadow-inner' : 'opacity-100'
       } ${event.completed ? 'opacity-60 grayscale-[0.3]' : ''}`}
     >
@@ -176,7 +184,7 @@ export default function KanbanView() {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 
   if (store.events.length === 0) {
@@ -209,7 +217,7 @@ export default function KanbanView() {
           </span>
         </div>
         <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-          {columns.upcoming.map(renderEventCard)}
+          <AnimatePresence initial={false}>{columns.upcoming.map(renderEventCard)}</AnimatePresence>
           {columns.upcoming.length === 0 && (
             <div className="h-32 flex flex-col items-center justify-center text-sm text-zinc-400 dark:text-zinc-500 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white/50 dark:bg-zinc-900/50">
               <Inbox className="w-6 h-6 mb-2 opacity-50" />
@@ -235,7 +243,7 @@ export default function KanbanView() {
           </span>
         </div>
         <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-          {columns.today.map(renderEventCard)}
+          <AnimatePresence initial={false}>{columns.today.map(renderEventCard)}</AnimatePresence>
           {columns.today.length === 0 && (
             <div className="h-32 flex flex-col items-center justify-center text-sm text-primary-400/60 dark:text-primary-500/60 border-2 border-dashed border-primary-200 dark:border-primary-800/50 rounded-2xl bg-white/50 dark:bg-primary-900/20">
               <Inbox className="w-6 h-6 mb-2 opacity-50" />
@@ -261,7 +269,7 @@ export default function KanbanView() {
           </span>
         </div>
         <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-          {columns.done.map(renderEventCard)}
+          <AnimatePresence initial={false}>{columns.done.map(renderEventCard)}</AnimatePresence>
           {columns.done.length === 0 && (
             <div className="h-32 flex flex-col items-center justify-center text-sm text-zinc-400 dark:text-zinc-500 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white/50 dark:bg-zinc-900/50">
               <Inbox className="w-6 h-6 mb-2 opacity-50" />

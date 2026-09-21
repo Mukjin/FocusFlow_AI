@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { generateRuleBasedEvents } from '../lib/ruleEngine';
 import { enhanceEventsWithGemini } from '../lib/geminiClient';
-import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { DURATION, EASE_OUT, SPRING, pressable } from '../lib/motion';
 
 const GOAL_CATEGORIES = [
   {
@@ -47,6 +49,10 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
   const [extraRequest, setExtraRequest] = useState(store.extraRequest);
   
   const [isGenerating, setIsGenerating] = useState(false);
+  // 2단계 파이프라인(규칙 엔진 -> Gemini)의 진행 상태를 화면에 드러내기 위한 상태
+  const [genStage, setGenStage] = useState<'idle' | 'rule' | 'ai'>('idle');
+  const [ruleCount, setRuleCount] = useState(0);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'warn'; text: string } | null>(null);
 
   const handleGoalToggle = (goal: string) => {
     if (goals.includes(goal)) {
@@ -71,12 +77,15 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
 
   const handleGenerate = async () => {
     if (goals.length === 0) {
-      alert('최소 1개의 목표를 선택해주세요.');
+      setNotice({ kind: 'error', text: '최소 1개의 목표를 선택해주세요.' });
       return;
     }
-    
+
     setIsGenerating(true);
-    
+    setNotice(null);
+    store.setAiNotice(null);
+    setGenStage('rule');
+
     try {
       // Save setup to store
       store.setSetup({
@@ -89,29 +98,43 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
         restDay,
         extraRequest
       });
-      
-      // Step 1: Rule-based generation
+
+      // Step 1: Rule-based generation (결정론적 뼈대)
       const ruleEvents = generateRuleBasedEvents(dday, startDate, goals, goalImportance, timePerDay, restDay, prefTime);
-      
-      // Step 2: Gemini enhancement
+      setRuleCount(ruleEvents.length);
+
+      // 1단계 완료가 화면에 인지되도록 짧게 머문 뒤 2단계로 넘어간다
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      setGenStage('ai');
+
+      // Step 2: Gemini enhancement (뼈대 안의 내용만 채움)
       let finalEvents = ruleEvents;
+      let aiFailed = false;
       try {
         finalEvents = await enhanceEventsWithGemini(ruleEvents, goals, extraRequest, store.apiKey);
       } catch (geminiError) {
         console.error("Gemini enhancement failed:", geminiError);
-        alert("AI 일정 구체화에 실패하여 기본 일정으로 생성합니다.");
+        aiFailed = true;
       }
-      
+
       // Add IDs
       const eventsWithIds = finalEvents.map((e, i) => ({ ...e, id: Date.now() + i }));
-      
       store.setEvents(eventsWithIds);
+
+      if (aiFailed) {
+        // 뼈대는 이미 완성됐으므로 일정은 살리고, 실패 사실만 알린다.
+        // App이 일정 생성 직후 캘린더 탭으로 자동 전환하므로 스토어에 담아 화면 밖으로 사라지지 않게 한다.
+        store.setAiNotice(
+          `AI 구체화에 실패해 규칙 엔진 기본 일정 ${eventsWithIds.length}개로 생성했습니다. Gemini API 키를 확인한 뒤 'AI 할 일 구체화'를 눌러주세요.`
+        );
+      }
       onComplete();
     } catch (error) {
       console.error("Generation error:", error);
-      alert("일정 생성 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setNotice({ kind: 'error', text: '일정 생성 중 오류가 발생했습니다. 다시 시도해주세요.' });
     } finally {
       setIsGenerating(false);
+      setGenStage('idle');
     }
   };
 
@@ -348,21 +371,107 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
             </div>
 
             <div className="pt-4">
-              <button 
-                onClick={handleGenerate}
-                disabled={isGenerating || goals.length === 0}
-                className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-primary-200 dark:shadow-primary-900/20 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-6 h-6 mr-2 animate-spin" />
-                    AI가 최적의 일정을 생성하고 있습니다...
-                  </>
-                ) : (
-                  '✨ 맞춤형 학습 일정 생성하기'
-                )}
-              </button>
-              {goals.length === 0 && (
+              {isGenerating ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: DURATION.base, ease: EASE_OUT }}
+                  className="w-full p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-primary-100 dark:border-primary-800/30 shadow-sm space-y-5"
+                >
+                  {/* 1단계: 규칙 엔진 */}
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <AnimatePresence mode="wait" initial={false}>
+                        {genStage === 'rule' ? (
+                          <motion.span key="spin" exit={{ opacity: 0, scale: 0.6 }}>
+                            <Loader2 className="w-6 h-6 animate-spin text-primary-600 dark:text-primary-400" />
+                          </motion.span>
+                        ) : (
+                          <motion.span
+                            key="done"
+                            initial={{ scale: 0.3, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ ...SPRING, stiffness: 520 }}
+                            className="block"
+                          >
+                            <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-bold text-zinc-900 dark:text-zinc-100">① 규칙 엔진 · 일정 뼈대 생성</p>
+                        {genStage !== 'rule' && (
+                          <motion.span
+                            initial={{ opacity: 0, x: 8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: DURATION.base, ease: EASE_OUT }}
+                            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap"
+                          >
+                            {ruleCount}개 완료
+                          </motion.span>
+                        )}
+                      </div>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        날짜 · 시간대 · 소요시간 · 기초/심화/마무리 단계 계산
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="ml-3 h-4 w-0.5 bg-zinc-200 dark:bg-zinc-700 overflow-hidden rounded">
+                    <motion.div
+                      className="w-full bg-emerald-500"
+                      initial={{ height: 0 }}
+                      animate={{ height: genStage === 'rule' ? 0 : '100%' }}
+                      transition={{ duration: DURATION.base, ease: EASE_OUT }}
+                    />
+                  </div>
+
+                  {/* 2단계: Gemini */}
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 mt-0.5">
+                      {genStage === 'ai'
+                        ? <Loader2 className="w-6 h-6 animate-spin text-primary-600 dark:text-primary-400" />
+                        : <Circle className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-bold ${genStage === 'ai' ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                        ② Gemini · 할 일 내용 + 참고자료 검색
+                      </p>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        뼈대는 그대로 두고, 각 칸의 내용만 채웁니다
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  {...pressable}
+                  onClick={handleGenerate}
+                  disabled={goals.length === 0}
+                  className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-primary-200 dark:shadow-primary-900/20 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  ✨ 맞춤형 학습 일정 생성하기
+                </motion.button>
+              )}
+
+              {notice && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: DURATION.fast, ease: EASE_OUT }}
+                  className={`mt-4 flex items-start gap-2.5 p-4 rounded-xl border text-sm font-medium ${
+                  notice.kind === 'error'
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300'
+                }`}>
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span className="flex-1">{notice.text}</span>
+                </motion.div>
+              )}
+
+              {goals.length === 0 && !isGenerating && (
                 <p className="text-center text-red-500 text-sm mt-3 font-medium">
                   이전 단계에서 최소 1개의 목표를 선택해주세요.
                 </p>

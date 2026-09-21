@@ -13,6 +13,9 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   events: [],
   apiKey: sessionStorage.getItem('geminiApiKey') || '',
   theme: (localStorage.getItem('appTheme') as AppTheme) || 'indigo',
+  planVersion: 0,
+  aiNotice: null,
+  setAiNotice: (aiNotice) => set({ aiNotice }),
   setTheme: (theme) => {
     localStorage.setItem('appTheme', theme);
     document.documentElement.setAttribute('data-theme', theme);
@@ -23,7 +26,8 @@ export const usePlannerStore = create<PlannerState>((set) => ({
     set({ apiKey: key });
   },
   setSetup: (setup) => set((state) => ({ ...state, ...setup })),
-  setEvents: (events) => set({ events }),
+  // 새 플랜이 통째로 들어올 때만 버전을 올린다
+  setEvents: (events) => set((state) => ({ events, planVersion: state.planVersion + 1 })),
   addEvent: (event) => set((state) => ({
     events: [...state.events, { ...event, id: Date.now() + Math.floor(Math.random() * 1000) }]
   })),

@@ -27,9 +27,12 @@ export interface PlannerState {
   events: StudyEvent[];
   apiKey: string;
   theme: AppTheme;
+  planVersion: number;
+  aiNotice: string | null;
+  setAiNotice: (notice: string | null) => void;
   setTheme: (theme: AppTheme) => void;
   setApiKey: (key: string) => void;
-  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'apiKey' | 'setApiKey' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme'>>) => void;
+  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'apiKey' | 'setApiKey' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme' | 'aiNotice' | 'setAiNotice' | 'planVersion'>>) => void;
   setEvents: (events: StudyEvent[]) => void;
   addEvent: (event: Omit<StudyEvent, 'id'>) => void;
   updateEvent: (id: number, event: Partial<StudyEvent>) => void;

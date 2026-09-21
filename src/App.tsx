@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { usePlannerStore } from "./store/plannerStore";
 import { enhanceEventsWithGemini } from "./lib/geminiClient";
-import { supabase } from "./lib/supabase";
+import { supabase, isSupabaseConfigured } from "./lib/supabase";
 import SetupForm from "./components/SetupForm";
 import CalendarView from "./components/CalendarView";
 import ListView from "./components/ListView";
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import { tabTransition, DURATION, EASE_OUT, SPRING, pressable } from "./lib/motion";
 
 type Tab = "setup" | "calendar" | "list" | "kanban" | "dashboard";
 
@@ -58,6 +60,10 @@ export default function App() {
   }, [deviceId]);
 
   const loadData = async (userId: string) => {
+    if (!isSupabaseConfigured) {
+      setIsDataLoaded(true);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from("planner_data")
@@ -81,7 +87,7 @@ export default function App() {
 
   // Auto-save logic
   useEffect(() => {
-    if (!isDataLoaded) return;
+    if (!isDataLoaded || !isSupabaseConfigured) return;
 
     const saveTimeout = setTimeout(async () => {
       try {
@@ -148,6 +154,7 @@ export default function App() {
     if (store.events.length === 0) return;
 
     setIsRefining(true);
+    store.setAiNotice(null);
     try {
       const refinedEvents = await enhanceEventsWithGemini(
         store.events,
@@ -158,7 +165,9 @@ export default function App() {
       store.setEvents(refinedEvents);
     } catch (error) {
       console.error("Refinement error:", error);
-      alert("AI 구체화 중 오류가 발생했습니다.");
+      store.setAiNotice(
+        "AI 구체화 중 오류가 발생했습니다. Gemini API 키가 올바른지 확인해주세요."
+      );
     } finally {
       setIsRefining(false);
     }
@@ -315,14 +324,24 @@ export default function App() {
                   }
                 }}
                 disabled={item.disabled}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
+                className={`relative w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-sm font-medium transition-colors duration-200 ${
                   activeTab === item.id
-                    ? "bg-white dark:bg-zinc-800 text-primary-600 dark:text-primary-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
-                    : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-100 border border-transparent"
+                    ? "text-primary-600 dark:text-primary-400"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
                 } ${item.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
               >
-                <Icon className={`w-5 h-5 ${activeTab === item.id ? "text-primary-500" : ""}`} />
-                {item.label}
+                {/* 활성 탭 배경이 항목 사이를 미끄러지듯 따라 이동한다 */}
+                {activeTab === item.id && (
+                  <motion.span
+                    layoutId="navActiveBg"
+                    transition={SPRING}
+                    className="absolute inset-0 rounded-2xl bg-white dark:bg-zinc-800 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-3">
+                  <Icon className={`w-5 h-5 ${activeTab === item.id ? "text-primary-500" : ""}`} />
+                  {item.label}
+                </span>
               </button>
             );
           })}
@@ -418,7 +437,8 @@ export default function App() {
 
             {store.events.length > 0 && (
               <div className="flex items-center gap-2.5">
-                <button
+                <motion.button
+                  {...pressable}
                   onClick={handleRefineTasks}
                   disabled={isRefining}
                   className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full transition-all text-sm font-semibold shadow-sm hover:shadow-md disabled:opacity-50"
@@ -431,7 +451,7 @@ export default function App() {
                   <span className="hidden sm:inline">
                     {isRefining ? "구체화 중..." : "AI 할 일 구체화"}
                   </span>
-                </button>
+                </motion.button>
 
                 <div className="relative">
                   <button
@@ -482,19 +502,50 @@ export default function App() {
           </div>
         </header>
 
+        {/* AI 상태 배너 — 일정 생성 직후 캘린더로 자동 전환돼도 사라지지 않도록 App 레벨에서 렌더 */}
+        <AnimatePresence>
+        {store.aiNotice && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION.base, ease: EASE_OUT }}
+            className="flex-shrink-0 overflow-hidden flex items-start gap-2.5 px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-sm font-medium">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span className="flex-1">{store.aiNotice}</span>
+            <button
+              onClick={() => store.setAiNotice(null)}
+              className="flex-shrink-0 p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+              title="닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+        </AnimatePresence>
+
         {/* Content Area */}
         <div className="flex-1 overflow-hidden relative">
-          <div className="w-full h-full animate-in fade-in duration-300">
-            {activeTab === "setup" && (
-              <div className="h-full overflow-auto p-4 sm:p-8 custom-scrollbar flex items-center justify-center">
-                <SetupForm onComplete={() => setActiveTab("calendar")} />
-              </div>
-            )}
-            {activeTab === "calendar" && <CalendarView />}
-            {activeTab === "kanban" && <KanbanView />}
-            {activeTab === "dashboard" && <DashboardView />}
-            {activeTab === "list" && <ListView />}
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              variants={tabTransition}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              className="w-full h-full"
+            >
+              {activeTab === "setup" && (
+                <div className="h-full overflow-auto p-4 sm:p-8 custom-scrollbar flex items-center justify-center">
+                  <SetupForm onComplete={() => setActiveTab("calendar")} />
+                </div>
+              )}
+              {activeTab === "calendar" && <CalendarView />}
+              {activeTab === "kanban" && <KanbanView />}
+              {activeTab === "dashboard" && <DashboardView />}
+              {activeTab === "list" && <ListView />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 

@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, addWeeks, subWeeks } from 'date-fns';
 import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Circle, Calendar as CalendarIcon } from 'lucide-react';
 import DayDetailPanel from './DayDetailPanel';
+import { DURATION, EASE_OUT, STAGGER, SPRING } from '../lib/motion';
 
 const COLORS = [
   'bg-red-50 text-red-700 border-l-4 border-l-red-500 border-y border-r border-transparent dark:bg-red-500/10 dark:text-red-300 dark:border-l-red-500',
@@ -123,6 +125,8 @@ export default function CalendarView() {
     : `${format(startDate, 'M월 d일')} - ${format(endDate, 'M월 d일')}`;
 
   const dateFormat = 'd';
+  // 날짜 셀을 가로지르며 칩이 순서대로 등장하도록 렌더 단위 러닝 인덱스를 쓴다
+  let chipIndex = 0;
   const rows = [];
   let days = [];
   let day = startDate;
@@ -190,14 +194,19 @@ export default function CalendarView() {
                 ? formatMinutesToDuration(currentDurationMinutes) 
                 : event.duration;
 
+              const myChipIndex = chipIndex++;
               return (
-              <div 
+              <motion.div 
                 key={event.id} 
                 draggable={!isResizing}
-                onDragStart={(e) => {
+                onDragStart={(e: React.DragEvent) => {
                   if (!isResizing) handleDragStart(e, event.id);
                 }}
-                className={`group/event relative text-xs px-2 py-1.5 rounded-md transition-all ${COLORS[event.colorIndex % COLORS.length]} ${event.completed ? 'opacity-50 grayscale-[0.5]' : 'hover:shadow-sm'} ${isResizing ? 'ring-2 ring-primary-500 z-20 scale-105 shadow-md' : 'cursor-grab active:cursor-grabbing'}`}
+                initial={{ opacity: 0, scale: 0.9, y: 6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: DURATION.base, ease: EASE_OUT, delay: Math.min(myChipIndex * STAGGER.dense, 1.1) }}
+                whileHover={isResizing ? undefined : { scale: 1.03, transition: SPRING }}
+                className={`group/event relative text-xs px-2 py-1.5 rounded-md ${COLORS[event.colorIndex % COLORS.length]} ${event.completed ? 'opacity-50 grayscale-[0.5]' : 'hover:shadow-sm'} ${isResizing ? 'ring-2 ring-primary-500 z-20 scale-105 shadow-md' : 'cursor-grab active:cursor-grabbing'}`}
                 title={`${event.task} (${displayDuration})`}
               >
                 <div className="flex items-center justify-between gap-1">
@@ -230,7 +239,7 @@ export default function CalendarView() {
                   className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/event:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 rounded-r transition-opacity"
                   onMouseDown={(e) => handleResizeStart(e, event)}
                 />
-              </div>
+              </motion.div>
             )})}
             {viewMode === 'month' && dayEvents.length > 3 && (
               <button
@@ -309,7 +318,10 @@ export default function CalendarView() {
         </div>
 
         {/* Calendar Grid */}
-        <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-800/50 gap-[1px] flex flex-col">
+        <div
+          key={store.planVersion}
+          className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-800/50 gap-[1px] flex flex-col"
+        >
           {rows}
         </div>
       </div>
