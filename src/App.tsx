@@ -13,6 +13,7 @@ import LandingView from "./components/LandingView";
 import { PdfExportTemplate } from "./components/PdfExportTemplate";
 import { LogoWordmark } from "./components/Logo";
 import { isGeminiConfigured } from "./lib/geminiClient";
+import { findOverdue } from "./lib/rollover";
 import {
   Calendar,
   List,
@@ -31,8 +32,6 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { tabTransition, DURATION, EASE_OUT, SPRING, pressable } from "./lib/motion";
 import { format } from "date-fns";
 
@@ -41,6 +40,7 @@ type Tab = "setup" | "calendar" | "list" | "kanban" | "dashboard";
 export default function App() {
   const store = usePlannerStore();
   const geminiReady = isGeminiConfigured();
+  const overdueCount = findOverdue(store.events).length;
   const [activeTab, setActiveTab] = useState<Tab>("setup");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -102,6 +102,7 @@ export default function App() {
           restDay: store.restDay,
           extraRequest: store.extraRequest,
           events: store.events,
+          focusMinutes: store.focusMinutes,
           theme: store.theme,
         };
 
@@ -132,6 +133,7 @@ export default function App() {
     store.restDay,
     store.extraRequest,
     store.events,
+    store.focusMinutes,
     store.theme,
   ]);
 
@@ -153,6 +155,13 @@ export default function App() {
     setIsExportMenuOpen(false);
 
     try {
+      // 무거운 라이브러리(jspdf 약 29MB, html2canvas 약 4MB)라 첫 로딩에 태우지 않고
+      // 내보내기를 실제로 누를 때 받는다.
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
       const element = pdfRef.current;
       const canvas = await html2canvas(element, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL("image/png");
@@ -501,6 +510,28 @@ export default function App() {
 
         {/* AI 상태 배너 — 일정 생성 직후 캘린더로 자동 전환돼도 사라지지 않도록 App 레벨에서 렌더 */}
         <AnimatePresence>
+        {overdueCount > 0 && (
+          <motion.div
+            key="overdue"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION.base, ease: EASE_OUT }}
+            className="flex-shrink-0 overflow-hidden flex items-center gap-2.5 px-6 py-3 bg-zinc-100 dark:bg-white/[0.06] border-b border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-sm font-medium"
+          >
+            <Clock className="w-4 h-4 flex-shrink-0 text-zinc-400" />
+            <span className="flex-1">
+              지난 날짜에 <strong className="font-bold">{overdueCount}개</strong>가 남아 있습니다.
+            </span>
+            <motion.button
+              {...pressable}
+              onClick={() => store.rollOverdue()}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-primary-300 dark:hover:border-primary-700 transition-colors"
+            >
+              오늘로 가져오기
+            </motion.button>
+          </motion.div>
+        )}
         {store.aiRefining && (
           <motion.div
             key="refining"

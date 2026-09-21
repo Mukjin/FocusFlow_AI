@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, X, Coffee, Brain, Minimize2, Maximize2, Settings2 } from 'lucide-react';
+import { usePlannerStore } from '../store/plannerStore';
 
 export default function PomodoroWidget() {
+  const addFocusMinutes = usePlannerStore((s) => s.addFocusMinutes);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -71,6 +73,9 @@ export default function PomodoroWidget() {
       deadlineRef.current = null;
       setIsActive(false);
       setMode((prev) => {
+        // 집중 세션을 끝까지 마쳤을 때만 실제 학습 시간으로 적립한다.
+        // 계획 시간과 달리 이 값은 실측이다.
+        if (prev === 'work') addFocusMinutes(workDuration);
         const next = prev === 'work' ? 'break' : 'work';
         setTimeLeft((next === 'work' ? workDuration : breakDuration) * 60);
         return next;
@@ -86,7 +91,7 @@ export default function PomodoroWidget() {
     };
     // timeLeft 는 의존성에서 뺀다. 넣으면 매 틱마다 interval 이 다시 만들어진다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, workDuration, breakDuration]);
+  }, [isActive, workDuration, breakDuration, addFocusMinutes]);
 
   // 탭이 다시 보이면 즉시 남은 시간을 실제 시각 기준으로 보정한다
   useEffect(() => {

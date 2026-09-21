@@ -34,15 +34,20 @@ export interface PlannerState {
   extraRequest: string;
   events: StudyEvent[];
   theme: AppTheme;
+  /** 뽀모도로로 실제 집중한 시간(분). 계획 시간과 달리 실측값이다. */
+  focusMinutes: number;
+  addFocusMinutes: (minutes: number) => void;
   planVersion: number;
   /** Gemini 구체화가 백그라운드에서 도는 중 */
   aiRefining: boolean;
   /** 현재 일정의 할 일 문구를 Gemini로 채운다. 실패해도 일정은 그대로 남는다. */
   refineWithAI: () => Promise<void>;
+  /** 지난 날짜에 남은 미완료 일정을 오늘로 끌어온다 */
+  rollOverdue: () => void;
   aiNotice: string | null;
   setAiNotice: (notice: string | null) => void;
   setTheme: (theme: AppTheme) => void;
-  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme' | 'aiNotice' | 'setAiNotice' | 'planVersion' | 'aiRefining' | 'refineWithAI'>>) => void;
+  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme' | 'aiNotice' | 'setAiNotice' | 'planVersion' | 'aiRefining' | 'refineWithAI' | 'rollOverdue' | 'focusMinutes' | 'addFocusMinutes'>>) => void;
   setEvents: (events: StudyEvent[]) => void;
   addEvent: (event: Omit<StudyEvent, 'id'>) => void;
   updateEvent: (id: number, event: Partial<StudyEvent>) => void;

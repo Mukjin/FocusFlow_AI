@@ -49,10 +49,17 @@ export default function DayDetailPanel({ date, events, onClose }: Props) {
     }
   };
 
+  // 브라우저 기본 confirm 은 화면 전체를 막고 스타일도 맞지 않는다.
+  // 한 번 더 누르면 지워지는 인라인 확인으로 바꾼다.
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const handleDelete = (id: number) => {
-    if (confirm('이 일정을 삭제하시겠습니까?')) {
+    if (confirmingId === id) {
       store.deleteEvent(id);
+      setConfirmingId(null);
+      return;
     }
+    setConfirmingId(id);
+    window.setTimeout(() => setConfirmingId((c) => (c === id ? null : c)), 3000);
   };
 
   return (
@@ -150,7 +157,17 @@ export default function DayDetailPanel({ date, events, onClose }: Props) {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => handleEdit(event)} className="p-1.5 text-zinc-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(event.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      className={`rounded-lg transition-colors ${
+                        confirmingId === event.id
+                          ? 'px-2 py-1 text-[11px] font-bold text-white bg-red-600 hover:bg-red-700'
+                          : 'p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30'
+                      }`}
+                      aria-label={confirmingId === event.id ? '한 번 더 누르면 삭제됩니다' : '일정 삭제'}
+                    >
+                      {confirmingId === event.id ? '삭제' : <Trash2 className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
                 <p className="text-sm text-zinc-800 dark:text-zinc-200 mb-3 leading-relaxed font-medium">{event.task}</p>

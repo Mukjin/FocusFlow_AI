@@ -146,7 +146,7 @@ export default function CalendarView() {
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, cloneDay)}
           className={`flex flex-col p-2 border-r border-b border-zinc-100 dark:border-zinc-800/50 transition-all cursor-pointer relative group
-            ${viewMode === 'month' ? 'min-h-[140px]' : 'min-h-[200px] h-full'}
+            ${viewMode === 'month' ? 'min-h-[78px] sm:min-h-[140px]' : 'min-h-[140px] sm:min-h-[200px] h-full'}
             ${!isCurrentMonth && viewMode === 'month' ? 'bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-400' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100'}
             ${isSelected ? 'ring-2 ring-inset ring-primary-500 bg-primary-50/10 dark:bg-primary-900/10 z-10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}
           `}
@@ -156,12 +156,30 @@ export default function CalendarView() {
               {formattedDate}
             </span>
             {dayEvents.length > 0 && (
-              <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 mt-1 mr-1">
+              <span className="hidden sm:inline text-[10px] font-medium text-zinc-400 dark:text-zinc-500 mt-1 mr-1">
                 {dayEvents.length}개
               </span>
             )}
           </div>
-          <div className={`flex flex-col gap-1.5 overflow-y-auto no-scrollbar flex-1 ${viewMode === 'month' ? 'max-h-[105px]' : ''}`}>
+          {/* 모바일(375px)에서는 한 칸이 약 53px 이라 칩에 글자가 들어가지 않는다.
+              점으로만 있음을 알리고, 날짜를 누르면 상세 패널에서 읽게 한다. */}
+          <div className="flex sm:hidden flex-wrap gap-1 mt-0.5">
+            {dayEvents.slice(0, 6).map((event) => (
+              <span
+                key={event.id}
+                aria-hidden
+                className={`w-1.5 h-1.5 rounded-full ${event.completed ? 'opacity-30' : ''}`}
+                style={{ background: event.isReview ? 'var(--color-zinc-400)' : seriesColor(event.colorIndex) }}
+              />
+            ))}
+            {dayEvents.length > 6 && (
+              <span className="text-[9px] leading-none text-zinc-400 dark:text-zinc-500">
+                +{dayEvents.length - 6}
+              </span>
+            )}
+          </div>
+
+          <div className={`hidden sm:flex flex-col gap-1.5 overflow-y-auto no-scrollbar flex-1 ${viewMode === 'month' ? 'max-h-[105px]' : ''}`}>
             {dayEvents.slice(0, viewMode === 'month' ? 3 : undefined).map((event) => {
               const isResizing = resizingEventId === event.id;
               const displayDuration = isResizing 
@@ -306,7 +324,7 @@ export default function CalendarView() {
 
       {/* Side Panel */}
       {selectedDate && (
-        <div className="w-full lg:w-80 flex-shrink-0 animate-in slide-in-from-right-4 duration-300 border-l border-zinc-200/80 dark:border-zinc-800/80 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-xl">
+        <div className="fixed inset-x-0 bottom-0 top-1/3 z-40 lg:static lg:inset-auto lg:top-auto lg:w-80 lg:flex-shrink-0 animate-in slide-in-from-bottom-6 lg:slide-in-from-right-4 duration-300 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 lg:bg-white/50 lg:dark:bg-zinc-900/50 backdrop-blur-xl rounded-t-3xl lg:rounded-none shadow-2xl lg:shadow-none">
           <DayDetailPanel 
             date={selectedDate} 
             events={eventsByDate.get(format(selectedDate, 'yyyy-MM-dd')) || []} 

@@ -6,7 +6,7 @@ import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT } from '../lib/motio
 import { parseDurationToMinutes, splitHoursMinutes } from '../lib/duration';
 import { seriesColor } from '../lib/palette';
 import { getCurrentStreak, getLongestStreak, getRecentActivity } from '../lib/streak';
-import { CheckCircle2, Clock, Target, TrendingUp, Flame, Repeat, Inbox } from 'lucide-react';
+import { CheckCircle2, Clock, Target, TrendingUp, Flame, Repeat, Inbox, Brain } from 'lucide-react';
 import { parseISO, isSameDay } from 'date-fns';
 
 /* 카드 표면 — 화면 전체가 하나의 재질로 읽히도록 한 곳에서만 정의한다 */
@@ -51,6 +51,7 @@ export default function DashboardView() {
     .filter(e => e.completed)
     .reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
   const done = splitHoursMinutes(completedDurationMinutes);
+  const focus = splitHoursMinutes(store.focusMinutes);
   const planned = splitHoursMinutes(totalDurationMinutes);
 
   // 과목 식별 색을 같이 들고 다녀야 점과 이름이 항상 짝이 맞는다
@@ -96,7 +97,7 @@ export default function DashboardView() {
 
       {/* ── 숫자 타일 4개 ─────────────────────────────── */}
       <motion.div
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"
         variants={staggerParent(STAGGER.card)}
         initial="hidden"
         animate="show"
@@ -115,11 +116,21 @@ export default function DashboardView() {
 
         <StatTile
           icon={<Clock />}
-          label="학습 시간"
+          label="완료한 분량"
           sub={`계획 ${planned.hours}시간 ${planned.minutes}분 중`}
         >
           <span className={NUM}><CountUp value={done.hours} /></span><span className={UNIT}>시간</span>
           <span className={`${NUM} ml-1`}><CountUp value={done.minutes} /></span><span className={UNIT}>분</span>
+        </StatTile>
+
+        {/* 위 타일은 '체크한 일정의 계획 시간 합'이고, 이건 뽀모도로로 실제 앉아 있던 시간이다 */}
+        <StatTile
+          icon={<Brain />}
+          label="실제 집중 시간"
+          sub={store.focusMinutes > 0 ? '뽀모도로 실측' : '뽀모도로를 완주하면 쌓입니다'}
+        >
+          <span className={NUM}><CountUp value={focus.hours} /></span><span className={UNIT}>시간</span>
+          <span className={`${NUM} ml-1`}><CountUp value={focus.minutes} /></span><span className={UNIT}>분</span>
         </StatTile>
       </motion.div>
 

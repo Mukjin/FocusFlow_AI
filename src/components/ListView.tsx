@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { format, parseISO } from 'date-fns';
@@ -48,10 +48,17 @@ export default function ListView() {
     };
   }, [store.events, groupedEvents]);
 
+  // 브라우저 기본 confirm 은 화면 전체를 막고 스타일도 맞지 않는다.
+  // 한 번 더 누르면 지워지는 인라인 확인으로 바꾼다.
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const handleDelete = (id: number) => {
-    if (confirm('이 일정을 삭제하시겠습니까?')) {
+    if (confirmingId === id) {
       store.deleteEvent(id);
+      setConfirmingId(null);
+      return;
     }
+    setConfirmingId(id);
+    window.setTimeout(() => setConfirmingId((c) => (c === id ? null : c)), 3000);
   };
 
   if (store.events.length === 0) {
@@ -181,10 +188,14 @@ export default function ListView() {
                   <div className="flex-shrink-0 pl-2">
                     <button 
                       onClick={() => handleDelete(event.id)}
-                      className="p-2.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-                      title="삭제"
+                      className={`px-3 py-2.5 rounded-xl transition-colors text-sm font-bold whitespace-nowrap ${
+                        confirmingId === event.id
+                          ? 'text-white bg-red-600 hover:bg-red-700'
+                          : 'text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                      }`}
+                      aria-label={confirmingId === event.id ? '한 번 더 누르면 삭제됩니다' : '일정 삭제'}
                     >
-                      <Trash2 className="w-5 h-5" />
+                      {confirmingId === event.id ? '삭제할까요?' : <Trash2 className="w-5 h-5" />}
                     </button>
                   </div>
                 </motion.div>

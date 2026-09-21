@@ -1,5 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
-
 /**
  * AI 구체화 호출.
  *
@@ -179,6 +177,8 @@ async function callDirect(
       ${PROMPT_TAIL}
   `;
 
+  // SDK 는 로컬 직접 모드에서만 필요하다. 배포본(프록시 모드)은 내려받지 않는다.
+  const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({ apiKey });
   // 검색 그라운딩(googleSearch)은 유료 등급 전용이라 쓰지 않는다.
   const response = await ai.models.generateContent({
