@@ -2,6 +2,12 @@
 
 > 규칙 엔진이 학습 일정의 **뼈대**를 만들고, Gemini가 그 뼈대 안의 **내용만** 채우는 D-Day 학습 플래너
 
+**▶ 데모: https://mukjin.github.io/FocusFlow_AI/**
+
+> 공개 데모에는 API 키를 넣지 않았습니다. 키가 노출되기 때문입니다(아래 보안 주의 참고).
+> 그래서 데모는 **규칙 엔진 전용**으로 돌아가며, 모든 날짜에 같은 문구가 들어갑니다.
+> AI 구체화까지 보려면 아래 방법으로 로컬에서 본인 키로 실행해주세요.
+
 AI에게 학습 계획을 통째로 맡기면 물어볼 때마다 결과 구조가 달라지고 요청한 일수와 실제 일정 개수가 맞지 않습니다.
 FocusFlow_AI는 **날짜·시간대·소요시간·학습 단계를 결정론적 규칙으로 먼저 확정**한 뒤, LLM에게는 각 칸의 할 일 문구와 참고 링크만 채우게 해서 일정 구조가 깨지지 않도록 만든 브라우저 단독 실행 플래너입니다.
 
@@ -133,6 +139,7 @@ Zustand 스토어 → 캘린더 / 칸반 / 통계 / 목록 뷰
 | PDF 내보내기 (html2canvas + jsPDF) | `src/App.tsx`, `src/components/PdfExportTemplate.tsx` |
 | ICS 내보내기 (RFC 5545 이스케이프·75옥텟 폴딩·CRLF 준수) | `src/App.tsx` |
 | 테마 5색 전환 (CSS 변수 교체) | `src/index.css` |
+| 과목 식별 색 — 명도·채도·색각이상 분리 검증을 통과한 고정 8색 | `src/lib/palette.ts`, `src/index.css` |
 | 소요 시간 파싱·포맷 공용 유틸 | `src/lib/duration.ts` |
 | 모션 시스템 (토큰 기반 진입·전환·순차 등장, 접근성 `reducedMotion` 대응) | `src/lib/motion.ts`, `src/components/motion/Primitives.tsx` |
 | 익명 기기 ID 기반 자동 저장 | `src/App.tsx` |
