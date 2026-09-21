@@ -1,5 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { StudyEvent } from "../types";
+import { GoogleGenAI } from "@google/genai";
 
 export async function enhanceEventsWithGemini<
   T extends {
@@ -37,29 +36,25 @@ export async function enhanceEventsWithGemini<
       
       위 개수에 정확히 맞춰서 각 과목의 단계별 일별 학습 주제를 배열 형태로 작성해주세요.
       배열의 길이는 요청한 개수와 정확히 일치해야 합니다.
-      또한, 각 학습 주제(task)에 대해 참고할 수 있는 유용한 실제 웹사이트 링크(공식 문서, 위키백과, 신뢰할 수 있는 블로그, 유튜브 검색 링크 등)를 하나씩 찾아 referenceLink로 제공해주세요.
-      
+      같은 문구를 반복하지 말고, 날짜마다 다른 구체적인 학습 주제를 써주세요.
+
+      URL이나 링크는 절대 포함하지 마세요. 검색 없이 지어낸 링크는 실제로 열리지 않기 때문입니다.
+
       반드시 다음 JSON 배열 형식으로만 응답해주세요. 다른 설명은 포함하지 마세요:
       [
         {
           "subject": "과목명",
           "phase": "학습 단계",
-          "tasks": [
-            {
-              "task": "학습 주제",
-              "referenceLink": "https://..."
-            }
-          ]
+          "tasks": ["학습 주제1", "학습 주제2"]
         }
       ]
     `;
 
+    // 검색 그라운딩(googleSearch)은 Gemini API 유료 등급 전용이라 쓰지 않는다.
+    // 그라운딩 없이 링크를 생성시키면 열리지 않는 주소가 나오므로 프롬프트에서도 링크를 막았다.
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
     });
 
     let resultText = response.text;
@@ -124,38 +119,33 @@ export async function enhanceEventsWithGemini<
     }
 
     // Create a map to easily consume tasks
-    const taskMap: Record<
-      string,
-      Record<string, Array<{ task: string; referenceLink: string }>>
-    > = {};
+    const taskMap: Record<string, Record<string, string[]>> = {};
     parsed.forEach((item: any) => {
       const subj = String(item.subject || "").trim();
       const ph = String(item.phase || "").trim();
       if (!taskMap[subj]) taskMap[subj] = {};
-      taskMap[subj][ph] = item.tasks || [];
+      // 모델이 ["주제"] 대신 [{task:"주제"}] 로 답하는 경우도 받아준다
+      taskMap[subj][ph] = (item.tasks || [])
+        .map((t: any) => (typeof t === "string" ? t : t?.task))
+        .filter((t: any): t is string => typeof t === "string" && t.trim().length > 0);
     });
 
     // Assign tasks back to events
     const enhancedEvents = events.map((event) => {
       let newTask = event.task;
-      let newReferenceLink = event.referenceLink;
 
       const subj = String(event.subject || "").trim();
       const ph = String(event.phase || "").trim();
 
       if (taskMap[subj] && taskMap[subj][ph] && taskMap[subj][ph].length > 0) {
-        // Take the first task from the array and remove it
+        // 앞에서부터 하나씩 꺼내 쓴다. 모자라면 규칙 엔진이 만든 기본 문구가 그대로 남는다.
         const assignedTask = taskMap[subj][ph].shift();
-        if (assignedTask) {
-          newTask = assignedTask.task || event.task;
-          newReferenceLink = assignedTask.referenceLink || event.referenceLink;
-        }
+        if (assignedTask) newTask = assignedTask;
       }
 
       return {
         ...event,
         task: newTask,
-        referenceLink: newReferenceLink,
         aiEnhanced: true,
       };
     });

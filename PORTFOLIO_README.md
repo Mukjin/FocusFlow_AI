@@ -23,7 +23,7 @@
 | 층 | 담당 | 성격 | 구현 |
 |---|---|---|---|
 | **구조** — 며칠째에 어떤 과목을 몇 분, 몇 시에, 어느 단계로 | 규칙 엔진 | 결정론적 | `src/lib/ruleEngine.ts` |
-| **내용** — 그 칸에서 구체적으로 무엇을 공부할지, 무엇을 참고할지 | Gemini | 확률론적 | `src/lib/geminiClient.ts` |
+| **내용** — 그 칸에서 구체적으로 무엇을 공부할지 | Gemini | 확률론적 | `src/lib/geminiClient.ts` |
 
 ### 규칙 엔진이 확정하는 것 (`generateRuleBasedEvents`)
 
@@ -56,29 +56,24 @@ events.forEach((e) => {
 
 ```ts
 const assignedTask = taskMap[subj][ph].shift();
-if (assignedTask) {
-  newTask = assignedTask.task || event.task;          // 모자라면 원래 task 유지
-  newReferenceLink = assignedTask.referenceLink || event.referenceLink;
-}
+if (assignedTask) newTask = assignedTask;   // 모자라면 규칙 엔진 기본 문구가 그대로 남는다
 ```
 
 덕분에 **LLM이 개수를 틀려도 일정이 사라지거나 늘어나지 않습니다.** 모자라면 규칙 엔진이 만든 기본 문구가 그대로 남습니다.
 
-### 참고 링크: 검색 그라운딩
+### 링크는 만들지 않기로 한 결정
 
-할 일마다 실제로 존재하는 참고 자료를 붙이기 위해 `googleSearch` 툴을 켰습니다.
+처음에는 `googleSearch` 그라운딩을 켜서 할 일마다 참고 자료 링크를 붙였습니다. 그런데 Gemini API에서 **검색 그라운딩은 유료 등급 전용**이라는 것을 확인했습니다. 무료 등급에서는 사용할 수 없습니다.
 
-```ts
-const response = await ai.models.generateContent({
-  model: "gemini-3-flash-preview",
-  contents: prompt,
-  config: { tools: [{ googleSearch: {} }] },
-});
+그라운딩 없이도 모델에게 링크를 요구하면 URL 형태의 문자열은 나옵니다. 하지만 검증되지 않은, 대부분 열리지 않는 주소입니다. 이건 "AI가 참고자료도 찾아준다"는 겉모습만 남기고 실제로는 사용자를 404로 보내는 기능입니다.
+
+그래서 **기능을 빼는 쪽을 택했습니다.** 프롬프트에 URL 생성을 명시적으로 금지하고, 참고 링크는 사용자가 일정 상세 패널에서 직접 입력하도록 남겼습니다.
+
+```
+URL이나 링크는 절대 포함하지 마세요. 검색 없이 지어낸 링크는 실제로 열리지 않기 때문입니다.
 ```
 
-생성된 링크는 캘린더 상세 패널 · 칸반 카드 · 목록 뷰 · PDF 출력에 모두 노출됩니다.
-
----
+대신 AI가 확실히 잘하는 일에 집중시켰습니다. 규칙 엔진이 만드는 기본 문구는 30일 내내 `토익 핵심 개념 정리 및 이론 학습` 하나로 반복되는데, Gemini가 이를 **날짜마다 다른 구체적인 주제**로 바꿉니다. 검증할 수 없는 외부 정보를 끌어오는 대신, 이미 정해진 구조 안의 표현을 다듬는 역할입니다.
 
 ## 3. 실패를 전제로 한 폴백
 

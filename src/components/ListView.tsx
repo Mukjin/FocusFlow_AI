@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Sparkles, Trash2, CalendarDays, Clock, BookOpen, CheckCircle2, Circle, Inbox, ExternalLink } from 'lucide-react';
+import { DURATION, EASE_OUT, STAGGER } from '../lib/motion';
 
 export default function ListView() {
   const store = usePlannerStore();
@@ -114,9 +116,15 @@ export default function ListView() {
                 총 {(events as any[]).length}개 일정
               </span>
             </div>
-            <div className="divide-y divide-zinc-200/80 dark:divide-zinc-800/80">
-              {(events as any[]).map(event => (
-                <div key={event.id} className={`p-5 flex flex-col sm:flex-row sm:items-center gap-5 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30 transition-colors ${event.completed ? 'opacity-60 grayscale-[0.2]' : ''}`}>
+            <div key={store.planVersion} className="divide-y divide-zinc-200/80 dark:divide-zinc-800/80">
+              {(events as any[]).map((event, i) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: DURATION.base, ease: EASE_OUT, delay: Math.min(i * STAGGER.dense * 2, 1.1) }}
+                  className={`p-5 flex flex-col sm:flex-row sm:items-center gap-5 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30 transition-colors ${event.completed ? 'opacity-60 grayscale-[0.2]' : ''}`}
+                >
                   <div className="w-36 flex-shrink-0 flex items-center gap-3">
                     <button 
                       onClick={() => store.toggleEventCompletion(event.id)}
@@ -179,7 +187,7 @@ export default function ListView() {
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
