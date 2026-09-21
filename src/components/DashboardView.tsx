@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { CountUp, AnimatedBar } from './motion/Primitives';
 import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT } from '../lib/motion';
+import { parseDurationToMinutes } from '../lib/duration';
 import { CheckCircle2, Clock, Target, TrendingUp, BookOpen, Calendar as CalendarIcon, Award } from 'lucide-react';
 import { format, parseISO, isSameDay } from 'date-fns';
 
@@ -14,17 +15,8 @@ export default function DashboardView() {
   const completedEvents = events.filter(e => e.completed).length;
   const completionRate = totalEvents > 0 ? Math.round((completedEvents / totalEvents) * 100) : 0;
 
-  const parseDuration = (durationStr: string) => {
-    let mins = 0;
-    const match = durationStr.match(/(\d+)분/);
-    if (match) mins += parseInt(match[1], 10);
-    const hourMatch = durationStr.match(/(\d+)시간/);
-    if (hourMatch) mins += parseInt(hourMatch[1], 10) * 60;
-    return mins;
-  };
-
-  const totalDurationMinutes = events.reduce((acc, e) => acc + parseDuration(e.duration), 0);
-  const completedDurationMinutes = events.filter(e => e.completed).reduce((acc, e) => acc + parseDuration(e.duration), 0);
+  const totalDurationMinutes = events.reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
+  const completedDurationMinutes = events.filter(e => e.completed).reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
 
   const subjectStats = useMemo(() => {
     const stats: Record<string, { total: number; completed: number; duration: number }> = {};
@@ -36,7 +28,7 @@ export default function DashboardView() {
       if (e.completed) {
         stats[e.subject].completed += 1;
       }
-      stats[e.subject].duration += parseDuration(e.duration);
+      stats[e.subject].duration += parseDurationToMinutes(e.duration);
     });
     return Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
   }, [events]);

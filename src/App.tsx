@@ -32,6 +32,7 @@ import {
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { tabTransition, DURATION, EASE_OUT, SPRING, pressable } from "./lib/motion";
+import { format } from "date-fns";
 
 type Tab = "setup" | "calendar" | "list" | "kanban" | "dashboard";
 
@@ -212,25 +213,76 @@ export default function App() {
   const handleExportICS = () => {
     if (store.events.length === 0) return;
 
-    let ics =
-      "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//AI Study Planner//KO\nCALSCALE:GREGORIAN\n";
+    // RFC 5545: TEXT 값 안의 역슬래시·세미콜론·쉼표·줄바꿈은 반드시 이스케이프한다.
+    // AI가 쓰는 한국어 할 일 문구에는 쉼표가 흔해서, 그대로 두면 파서가 값 구분자로 읽는다.
+    const escapeText = (value: string) =>
+      String(value ?? "")
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\r?\n/g, "\\n");
+
+    // RFC 5545: 한 줄은 75옥텟을 넘으면 접어야 한다(다음 줄을 공백으로 시작).
+    // 한글은 UTF-8에서 3바이트라 금방 넘어가므로 바이트 기준으로 자른다.
+    const foldLine = (line: string) => {
+      const encoder = new TextEncoder();
+      if (encoder.encode(line).length <= 75) return line;
+
+      const out: string[] = [];
+      let current = "";
+      let currentBytes = 0;
+      let limit = 75;
+
+      for (const char of line) {
+        const size = encoder.encode(char).length;
+        if (currentBytes + size > limit) {
+          out.push(current);
+          current = " " + char; // 이어지는 줄은 공백 한 칸으로 시작
+          currentBytes = 1 + size;
+          limit = 75;
+        } else {
+          current += char;
+          currentBytes += size;
+        }
+      }
+      if (current) out.push(current);
+      return out.join("\r\n");
+    };
+
+    const dtstamp =
+      new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+
+    const lines: string[] = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//FocusFlow_AI//KO",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+    ];
 
     store.events.forEach((event) => {
       const dateStr = event.date.replace(/-/g, "");
-      const uid = `${event.id}@aistudyplanner.com`;
-      const dtstamp =
-        new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+      // 종일 일정의 DTEND는 다음 날이어야 하루짜리로 표시된다
+      const end = new Date(`${event.date}T00:00:00`);
+      end.setDate(end.getDate() + 1);
+      const endStr = format(end, "yyyyMMdd");
 
-      ics += "BEGIN:VEVENT\n";
-      ics += `UID:${uid}\n`;
-      ics += `DTSTAMP:${dtstamp}\n`;
-      ics += `DTSTART;VALUE=DATE:${dateStr}\n`;
-      ics += `SUMMARY:${event.subject} - ${event.task}\n`;
-      ics += `DESCRIPTION:소요시간: ${event.duration}\\n단계: ${event.phase}\n`;
-      ics += "END:VEVENT\n";
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${event.id}-${dateStr}@focusflow-ai`,
+        `DTSTAMP:${dtstamp}`,
+        `DTSTART;VALUE=DATE:${dateStr}`,
+        `DTEND;VALUE=DATE:${endStr}`,
+        `SUMMARY:${escapeText(`${event.subject} - ${event.task}`)}`,
+        `DESCRIPTION:${escapeText(`소요시간: ${event.duration}\n단계: ${event.phase}`)}`,
+        "END:VEVENT",
+      );
     });
 
-    ics += "END:VCALENDAR";
+    lines.push("END:VCALENDAR");
+
+    // RFC 5545는 줄바꿈으로 CRLF를 요구한다
+    const ics = lines.map(foldLine).join("\r\n") + "\r\n";
 
     const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
     const url = URL.createObjectURL(blob);

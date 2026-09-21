@@ -120,10 +120,11 @@ Zustand 스토어 → 캘린더 / 칸반 / 통계 / 목록 뷰
 | 칸반 보드 (예정 / 오늘 / 완료) 드래그 이동 | `src/components/KanbanView.tsx` |
 | 통계 (달성률, 과목별 진행률, 계획 대비 완료 시간) | `src/components/DashboardView.tsx` |
 | 과목별 목록 뷰 | `src/components/ListView.tsx` |
-| 뽀모도로 타이머 | `src/components/PomodoroWidget.tsx` |
+| 뽀모도로 타이머 (종료 시각 기준 계산 · 백그라운드 탭에서도 정확) | `src/components/PomodoroWidget.tsx` |
 | PDF 내보내기 (html2canvas + jsPDF) | `src/App.tsx`, `src/components/PdfExportTemplate.tsx` |
-| ICS 내보내기 (구글 캘린더 등록용) | `src/App.tsx` |
+| ICS 내보내기 (RFC 5545 이스케이프·75옥텟 폴딩·CRLF 준수) | `src/App.tsx` |
 | 테마 5색 전환 (CSS 변수 교체) | `src/index.css` |
+| 소요 시간 파싱·포맷 공용 유틸 | `src/lib/duration.ts` |
 | 모션 시스템 (토큰 기반 진입·전환·순차 등장, 접근성 `reducedMotion` 대응) | `src/lib/motion.ts`, `src/components/motion/Primitives.tsx` |
 | 익명 기기 ID 기반 자동 저장 | `src/App.tsx` |
 
@@ -152,8 +153,9 @@ React 19 · TypeScript · Vite 6 · Zustand · Tailwind CSS 4 · Motion 12 · da
 |---|---|---|
 | Pretendard | jsDelivr CDN | SIL OFL 1.1 |
 | Inter, JetBrains Mono | Google Fonts | SIL OFL 1.1 |
-| 뽀모도로 알림음 | Mixkit CDN 직접 참조 (`PomodoroWidget.tsx`) | Mixkit 무료 라이선스 — 배포 전 로컬 호스팅 권장 |
 | 아이콘 | lucide-react | ISC |
+
+뽀모도로 알림음은 Web Audio API로 직접 합성합니다. 외부 음원 파일을 쓰지 않습니다.
 
 문제 지문·이미지 등 제3자 저작 콘텐츠는 저장소에 포함되어 있지 않습니다.
 설정 화면의 시험·자격증 명칭은 명칭만 사용하며 해당 기관과 제휴 관계가 없습니다.

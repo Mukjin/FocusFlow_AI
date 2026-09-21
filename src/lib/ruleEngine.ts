@@ -1,5 +1,6 @@
 import { addDays, format, getDay } from 'date-fns';
 import { StudyEvent } from '../types';
+import { formatMinutesToDuration } from './duration';
 
 function parseTimeToMinutes(timeStr: string): number {
   if (timeStr === '5시간+') return 300;
@@ -7,14 +8,6 @@ function parseTimeToMinutes(timeStr: string): number {
   if (!match) return 60;
   const val = parseFloat(match[1]);
   return match[2] === '시간' ? val * 60 : val;
-}
-
-function formatMinutes(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
-  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
-  if (h > 0) return `${h}시간`;
-  return `${m}분`;
 }
 
 function getStartTimeMinutes(prefTime: string): number {
@@ -86,7 +79,7 @@ export function generateRuleBasedEvents(
         remainingDailyMinutes -= minutesPerGoal;
       }
       
-      const durationStr = formatMinutes(minutesPerGoal);
+      const durationStr = formatMinutesToDuration(minutesPerGoal);
       const startTime = formatTime(currentDayMinutes);
       const endTime = formatTime(currentDayMinutes + minutesPerGoal);
       currentDayMinutes += minutesPerGoal;

@@ -5,6 +5,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, en
 import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Circle, Calendar as CalendarIcon } from 'lucide-react';
 import DayDetailPanel from './DayDetailPanel';
 import { DURATION, EASE_OUT, STAGGER, SPRING } from '../lib/motion';
+import { parseDurationToMinutes, formatMinutesToDuration } from '../lib/duration';
 
 const COLORS = [
   'bg-red-50 text-red-700 border-l-4 border-l-red-500 border-y border-r border-transparent dark:bg-red-500/10 dark:text-red-300 dark:border-l-red-500',
@@ -16,24 +17,6 @@ const COLORS = [
   'bg-primary-50 text-primary-700 border-l-4 border-l-primary-500 border-y border-r border-transparent dark:bg-primary-500/10 dark:text-primary-300 dark:border-l-primary-500',
   'bg-orange-50 text-orange-700 border-l-4 border-l-orange-500 border-y border-r border-transparent dark:bg-orange-500/10 dark:text-orange-300 dark:border-l-orange-500',
 ];
-
-function parseDurationToMinutes(durationStr: string): number {
-  let minutes = 0;
-  const hMatch = durationStr.match(/([\d.]+)\s*시간/);
-  const mMatch = durationStr.match(/([\d.]+)\s*분/);
-  if (hMatch) minutes += parseFloat(hMatch[1]) * 60;
-  if (mMatch) minutes += parseFloat(mMatch[1]);
-  return minutes || 60;
-}
-
-function formatMinutesToDuration(minutes: number): string {
-  if (minutes < 0) minutes = 0;
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
-  if (h > 0) return `${h}시간`;
-  return `${m}분`;
-}
 
 export default function CalendarView() {
   const store = usePlannerStore();
@@ -81,7 +64,7 @@ export default function CalendarView() {
     e.preventDefault();
     setResizingEventId(event.id);
     setResizeStartX(e.clientX);
-    const mins = parseDurationToMinutes(event.duration);
+    const mins = parseDurationToMinutes(event.duration) || 60;
     setOriginalDurationMinutes(mins);
     setCurrentDurationMinutes(mins);
   };

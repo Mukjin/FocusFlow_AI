@@ -15,38 +15,104 @@ export default function PomodoroWidget() {
   const [timeLeft, setTimeLeft] = useState(workDuration * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'work' | 'break'>('work');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 남은 시간을 1초씩 빼면 브라우저가 백그라운드 탭의 타이머를 스로틀링할 때
+  // 25분이 40분이 된다. 끝나는 시각을 기억해 두고 매 틱마다 현재 시각으로 다시 계산한다.
+  const deadlineRef = useRef<number | null>(null);
+
+  const playChime = () => {
+    // 외부 CDN 음원 대신 브라우저 내장 오디오로 직접 소리를 만든다.
+    // 네트워크·저작권 의존이 없고, CDN이 죽어도 알림이 멈추지 않는다.
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const start = now + i * 0.18;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.4);
+      });
+      setTimeout(() => ctx.close().catch(() => {}), 1200);
+    } catch {
+      /* 오디오를 못 쓰는 환경이면 조용히 넘어간다 */
+    }
+  };
 
   useEffect(() => {
-    if (isActive && timeLeft > 0) {
-      timerRef.current = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0) {
-      // Auto switch mode when timer ends
-      if (mode === 'work') {
-        setMode('break');
-        setTimeLeft(breakDuration * 60);
-      } else {
-        setMode('work');
-        setTimeLeft(workDuration * 60);
-      }
-      setIsActive(false);
-      // Play sound here if needed
-      new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => {});
+    if (!isActive) {
+      deadlineRef.current = null;
+      return;
     }
+
+    // 실행을 시작/재개한 시점에 끝나는 시각을 고정한다
+    if (deadlineRef.current === null) {
+      deadlineRef.current = Date.now() + timeLeft * 1000;
+    }
+
+    const tick = () => {
+      if (deadlineRef.current === null) return;
+      const remaining = Math.round((deadlineRef.current - Date.now()) / 1000);
+
+      if (remaining > 0) {
+        setTimeLeft(remaining);
+        return;
+      }
+
+      // 종료: 반대 모드로 전환하고 멈춘다
+      deadlineRef.current = null;
+      setIsActive(false);
+      setMode((prev) => {
+        const next = prev === 'work' ? 'break' : 'work';
+        setTimeLeft((next === 'work' ? workDuration : breakDuration) * 60);
+        return next;
+      });
+      playChime();
+    };
+
+    tick(); // 탭으로 돌아왔을 때 즉시 실제 남은 시간으로 맞춘다
+    timerRef.current = setInterval(tick, 250);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isActive, timeLeft, mode, workDuration, breakDuration]);
+    // timeLeft 는 의존성에서 뺀다. 넣으면 매 틱마다 interval 이 다시 만들어진다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, workDuration, breakDuration]);
 
-  const toggleTimer = () => setIsActive(!isActive);
+  // 탭이 다시 보이면 즉시 남은 시간을 실제 시각 기준으로 보정한다
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && isActive && deadlineRef.current !== null) {
+        setTimeLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [isActive]);
+
+  const toggleTimer = () => {
+    // 일시정지했다가 다시 누르면 남은 시간부터 새로 센다
+    if (isActive) deadlineRef.current = null;
+    setIsActive((prev) => !prev);
+  };
 
   const resetTimer = () => {
+    deadlineRef.current = null;
     setIsActive(false);
     setTimeLeft(mode === 'work' ? workDuration * 60 : breakDuration * 60);
   };
 
   const switchMode = (newMode: 'work' | 'break') => {
+    deadlineRef.current = null;
     setMode(newMode);
     setIsActive(false);
     setTimeLeft(newMode === 'work' ? workDuration * 60 : breakDuration * 60);
@@ -60,6 +126,7 @@ export default function PomodoroWidget() {
     setBreakDuration(newBreak);
     setShowSettings(false);
     setIsActive(false);
+    deadlineRef.current = null;
     
     if (mode === 'work') {
       setTimeLeft(newWork * 60);

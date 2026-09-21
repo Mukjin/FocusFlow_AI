@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Sparkles, Trash2, CalendarDays, Clock, BookOpen, CheckCircle2, Circle, Inbox, ExternalLink } from 'lucide-react';
 import { DURATION, EASE_OUT, STAGGER } from '../lib/motion';
+import { parseDurationToMinutes } from '../lib/duration';
 
 export default function ListView() {
   const store = usePlannerStore();
@@ -33,11 +34,7 @@ export default function ListView() {
     // Rough estimation of total hours based on duration strings
     let totalMinutes = 0;
     store.events.forEach(e => {
-      const hMatch = e.duration.match(/([\d.]+)\s*시간/);
-      const mMatch = e.duration.match(/([\d.]+)\s*분/);
-      
-      if (hMatch) totalMinutes += parseFloat(hMatch[1]) * 60;
-      if (mMatch) totalMinutes += parseFloat(mMatch[1]);
+      totalMinutes += parseDurationToMinutes(e.duration);
     });
     
     const totalHours = Math.floor(totalMinutes / 60);
