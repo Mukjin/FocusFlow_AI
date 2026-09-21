@@ -8,7 +8,9 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // 하위 호환용. 이 값은 번들에 그대로 들어가므로 공개 배포 시 키가 노출된다.
+      // 로컬 실행 전용으로만 쓸 것. (README 의 보안 주의 참고)
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? ''),
     },
     resolve: {
       alias: {

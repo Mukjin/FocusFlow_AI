@@ -12,39 +12,45 @@ FocusFlow_AI는 **날짜·시간대·소요시간·학습 단계를 결정론적
 **필요한 것:** Node.js 18 이상
 
 ```bash
+git clone https://github.com/Mukjin/FocusFlow_AI.git
+cd FocusFlow_AI
 npm install
+cp .env.example .env.local     # 키를 여기에 채웁니다
 npm run dev
 ```
 
-`http://localhost:3000` 에서 열립니다. **환경변수 없이도 바로 실행됩니다.**
+`http://localhost:3000` 에서 열립니다.
 
-### 선택 1 — Gemini API 키 (AI 기능을 쓰려면)
+### Gemini API 키 (권장)
 
-키가 없어도 규칙 엔진이 일정을 생성하지만, 모든 날짜에 같은 문구(`토익 핵심 개념 정리 및 이론 학습`)가 들어갑니다.
-키를 넣으면 Gemini가 **날짜마다 다른 구체적인 주제로 바꿔** 채웁니다.
-
-> **무료 등급으로 충분합니다.** 카드 등록 없이 Google AI Studio에서 키를 발급받아 쓰면 됩니다.
-> 단, Google 검색 그라운딩은 유료 등급 전용이라 이 앱에서는 쓰지 않습니다. 그라운딩 없이 링크를
-> 생성시키면 열리지 않는 주소가 나오므로, 프롬프트에서 URL 생성을 명시적으로 막아두었습니다.
-> 참고 링크는 일정 상세 패널에서 직접 입력할 수 있습니다.
-
-두 가지 방법 중 하나를 쓰면 됩니다.
-
-1. 앱 실행 후 **좌측 사이드바의 `Gemini API 설정`** 에 키를 붙여넣고 저장 (`sessionStorage`에 저장, 탭을 닫으면 사라짐)
-2. 프로젝트 루트에 `.env.local` 생성
+`.env.local` 에 한 줄만 넣으면 됩니다. **앱 화면에서 키를 입력하는 곳은 없습니다.**
 
 ```bash
-GEMINI_API_KEY=your-gemini-api-key
+VITE_GEMINI_API_KEY=여기에_발급받은_키
 ```
 
-> 키는 [Google AI Studio](https://aistudio.google.com/apikey)에서 발급받습니다.
+[Google AI Studio](https://aistudio.google.com/apikey)에서 **카드 등록 없이 무료로** 발급받습니다.
 
-### 선택 2 — Supabase (작성한 플랜을 브라우저 밖에 보관하려면)
+키가 없어도 앱은 정상 실행되며, 규칙 엔진이 만든 기본 일정이 나옵니다.
+다만 모든 날짜에 같은 문구가 들어가고, Gemini가 날짜별 구체적인 주제로 바꿔주는 단계만 생략됩니다.
+
+> ### ⚠️ 공개 배포 전에 반드시 읽어주세요
+>
+> 이 앱은 **백엔드가 없고 Gemini를 브라우저에서 직접 호출**합니다.
+> Vite는 빌드할 때 `.env` 값을 **번들 안에 그대로 넣기 때문에**, 이 상태로 배포하면
+> 누구나 개발자도구에서 키를 꺼내 쓸 수 있습니다.
+>
+> - **로컬에서 각자 자기 키로 실행** → 안전합니다. 위 방법이 그것입니다.
+> - **내 키를 넣은 채로 공개 배포** → 키가 노출되고 할당량이 소진됩니다. 하지 마세요.
+>
+> 공개 서비스로 만들려면 Gemini 호출을 서버 함수(Vercel/Cloudflare Functions,
+> Supabase Edge Functions 등)로 옮기고 키를 서버에만 두어야 합니다.
+
+### Supabase (선택)
 
 설정하지 않으면 저장 기능만 비활성화되고 나머지는 정상 동작합니다.
 
 ```bash
-# .env.local
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
@@ -66,7 +72,6 @@ create policy "anon read write" on planner_data
 ```
 
 > ⚠️ 위 정책은 모든 행을 anon 키로 접근 가능하게 열어둡니다. 개인 프로젝트 범위에서만 사용하세요.
-> 실제 서비스로 확장하려면 Supabase Auth를 붙이고 `auth.uid()` 기반 정책으로 바꿔야 합니다.
 
 ### 기타 명령
 
@@ -92,7 +97,7 @@ npm run preview  # 빌드 결과 미리보기
         │
         ▼  ← 이 시점에 일정 개수·날짜·시간이 모두 확정된다
         │
-② Gemini    src/lib/geminiClient.ts
+② Gemini    src/lib/geminiClient.ts  (①이 화면에 뜬 뒤 백그라운드에서 진행)
    · 과목·단계별로 필요한 task 개수를 집계해 프롬프트에 명시
    · 날짜마다 다른 구체적인 학습 주제를 요청 (반복 문구 금지)
    · 응답을 shift()로 하나씩 소비해 뼈대에 주입
@@ -118,6 +123,7 @@ Zustand 스토어 → 캘린더 / 칸반 / 통계 / 목록 뷰
 | **연속 학습일·최근 14일 활동** — 완료 시각 기준 실제 기록 | `src/lib/streak.ts` |
 | Gemini 할 일 구체화 (규칙 엔진의 반복 문구를 날짜별 구체 주제로 교체) | `src/lib/geminiClient.ts` |
 | 2단계 파이프라인 진행 표시 · AI 실패 시 폴백 배너 | `src/components/SetupForm.tsx`, `src/App.tsx` |
+| 규칙 엔진 결과를 먼저 보여주고 AI 구체화는 백그라운드 진행 | `src/store/plannerStore.ts` (`refineWithAI`) |
 | 월간/주간 캘린더, 드래그로 날짜 이동, **가로 드래그로 소요시간 리사이즈** | `src/components/CalendarView.tsx` |
 | 일자 상세 패널 (일정 추가·수정·삭제) | `src/components/DayDetailPanel.tsx` |
 | 칸반 보드 (예정 / 오늘 / 완료) 드래그 이동 | `src/components/KanbanView.tsx` |
@@ -135,7 +141,7 @@ Zustand 스토어 → 캘린더 / 칸반 / 통계 / 목록 뷰
 
 투명하게 밝혀둡니다.
 
-- **백엔드 서버 없음.** 모든 로직이 브라우저에서 실행되며 Gemini도 클라이언트에서 직접 호출합니다.
+- **백엔드 서버 없음.** 모든 로직이 브라우저에서 실행되며 Gemini도 클라이언트에서 직접 호출합니다. 그래서 공개 배포 시 키가 노출됩니다(위 경고 참고). 로컬 실행 전용입니다.
 - **로그인 없음.** `crypto.randomUUID()`로 만든 기기 ID를 `localStorage`에 저장해 식별합니다. 브라우저를 바꾸면 데이터를 이어받을 수 없습니다.
 - **실제 공부한 시간은 측정하지 않습니다.** 완료를 누른 시각(`completedAt`)은 기록되어 연속 학습일 계산에 쓰이지만, 타이머로 실측한 시간은 아닙니다. 통계의 "실제 학습 시간"은 *완료 체크된 일정의 계획 시간 합*입니다.
 - **플랜 이력이 남지 않습니다.** 저장이 `user_id` 1행 통째 덮어쓰기라 지난 플랜은 사라집니다.

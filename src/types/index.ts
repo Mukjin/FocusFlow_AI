@@ -33,14 +33,16 @@ export interface PlannerState {
   restDay: string;
   extraRequest: string;
   events: StudyEvent[];
-  apiKey: string;
   theme: AppTheme;
   planVersion: number;
+  /** Gemini 구체화가 백그라운드에서 도는 중 */
+  aiRefining: boolean;
+  /** 현재 일정의 할 일 문구를 Gemini로 채운다. 실패해도 일정은 그대로 남는다. */
+  refineWithAI: () => Promise<void>;
   aiNotice: string | null;
   setAiNotice: (notice: string | null) => void;
   setTheme: (theme: AppTheme) => void;
-  setApiKey: (key: string) => void;
-  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'apiKey' | 'setApiKey' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme' | 'aiNotice' | 'setAiNotice' | 'planVersion'>>) => void;
+  setSetup: (setup: Partial<Omit<PlannerState, 'events' | 'setSetup' | 'setEvents' | 'addEvent' | 'updateEvent' | 'deleteEvent' | 'toggleEventCompletion' | 'theme' | 'setTheme' | 'aiNotice' | 'setAiNotice' | 'planVersion' | 'aiRefining' | 'refineWithAI'>>) => void;
   setEvents: (events: StudyEvent[]) => void;
   addEvent: (event: Omit<StudyEvent, 'id'>) => void;
   updateEvent: (id: number, event: Partial<StudyEvent>) => void;

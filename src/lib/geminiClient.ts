@@ -1,5 +1,28 @@
 import { GoogleGenAI } from "@google/genai";
 
+/**
+ * API 키는 .env 파일에서만 읽는다. 화면에서 입력받지 않는다.
+ * VITE_GEMINI_API_KEY 를 기본으로 쓰되, AI Studio 템플릿이 쓰던
+ * GEMINI_API_KEY(vite.config 의 define 주입)도 함께 지원한다.
+ */
+export function getGeminiApiKey(): string {
+  const fromImportMeta = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (fromImportMeta) return String(fromImportMeta);
+
+  try {
+    if (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) {
+      return String(process.env.GEMINI_API_KEY);
+    }
+  } catch {
+    /* 브라우저에 process 가 없는 환경 */
+  }
+  return "";
+}
+
+export function isGeminiConfigured(): boolean {
+  return getGeminiApiKey().length > 0;
+}
+
 export async function enhanceEventsWithGemini<
   T extends {
     subject: string;
@@ -11,12 +34,15 @@ export async function enhanceEventsWithGemini<
   events: T[],
   goals: string[],
   extraRequest: string,
-  apiKey: string,
 ): Promise<T[]> {
   try {
-    const ai = new GoogleGenAI({
-      apiKey: apiKey || process.env.GEMINI_API_KEY,
-    });
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      throw new Error(
+        "Gemini API 키가 설정되지 않았습니다. .env.local 에 VITE_GEMINI_API_KEY 를 넣어주세요.",
+      );
+    }
+    const ai = new GoogleGenAI({ apiKey });
 
     // Group events by subject and phase to count how many tasks we need
     const subjectPhaseCounts: Record<string, Record<string, number>> = {};

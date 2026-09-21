@@ -12,6 +12,7 @@ import PomodoroWidget from "./components/PomodoroWidget";
 import LandingView from "./components/LandingView";
 import { PdfExportTemplate } from "./components/PdfExportTemplate";
 import { LogoWordmark } from "./components/Logo";
+import { isGeminiConfigured } from "./lib/geminiClient";
 import {
   Calendar,
   List,
@@ -39,13 +40,11 @@ type Tab = "setup" | "calendar" | "list" | "kanban" | "dashboard";
 
 export default function App() {
   const store = usePlannerStore();
+  const geminiReady = isGeminiConfigured();
   const [activeTab, setActiveTab] = useState<Tab>("setup");
-  const [apiKeyInput, setApiKeyInput] = useState(store.apiKey);
-  const [isKeySaved, setIsKeySaved] = useState(!!store.apiKey);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isRefining, setIsRefining] = useState(false);
   const [isAppStarted, setIsAppStarted] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
 
@@ -146,34 +145,7 @@ export default function App() {
     }
   }, [store.events.length, store.theme]);
 
-  const handleSaveKey = () => {
-    store.setApiKey(apiKeyInput);
-    setIsKeySaved(true);
-    setTimeout(() => setIsKeySaved(false), 2000);
-  };
-
-  const handleRefineTasks = async () => {
-    if (store.events.length === 0) return;
-
-    setIsRefining(true);
-    store.setAiNotice(null);
-    try {
-      const refinedEvents = await enhanceEventsWithGemini(
-        store.events,
-        store.goals,
-        store.extraRequest,
-        store.apiKey
-      );
-      store.setEvents(refinedEvents);
-    } catch (error) {
-      console.error("Refinement error:", error);
-      store.setAiNotice(
-        "AI 구체화 중 오류가 발생했습니다. Gemini API 키가 올바른지 확인해주세요."
-      );
-    } finally {
-      setIsRefining(false);
-    }
-  };
+  const handleRefineTasks = () => store.refineWithAI();
 
   const handleExportPDF = async () => {
     if (!pdfRef.current || store.events.length === 0) return;
@@ -421,38 +393,15 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 block">
-              Gemini API 설정
-            </label>
-            <div className="flex flex-col gap-2.5">
-              <div className="relative">
-                <Key className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="password"
-                  placeholder="API Key 입력"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500/50 transition-all placeholder:text-zinc-400"
-                />
-              </div>
-              <button
-                onClick={handleSaveKey}
-                className="w-full py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-semibold hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors shadow-sm"
-              >
-                {isKeySaved ? "저장됨 ✓" : "저장하기"}
-              </button>
-            </div>
-          </div>
-
           <div className="flex items-center justify-center p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm">
-            {store.apiKey ? (
+            {geminiReady ? (
               <div className="flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> AI 최적화 활성
               </div>
             ) : (
-              <div className="flex items-center text-xs font-medium text-amber-600 dark:text-amber-400">
-                <AlertCircle className="w-4 h-4 mr-1.5" /> 기본 규칙 모드
+              <div className="flex items-center text-xs font-medium text-amber-600 dark:text-amber-400 text-center leading-snug">
+                <AlertCircle className="w-4 h-4 mr-1.5 flex-shrink-0" />
+                기본 규칙 모드 · .env.local 설정 필요
               </div>
             )}
           </div>
@@ -488,16 +437,16 @@ export default function App() {
                 <motion.button
                   {...pressable}
                   onClick={handleRefineTasks}
-                  disabled={isRefining}
+                  disabled={store.aiRefining}
                   className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full transition-all text-sm font-semibold shadow-sm hover:shadow-md disabled:opacity-50"
                 >
-                  {isRefining ? (
+                  {store.aiRefining ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
                   <span className="hidden sm:inline">
-                    {isRefining ? "구체화 중..." : "AI 할 일 구체화"}
+                    {store.aiRefining ? "구체화 중..." : "AI 할 일 구체화"}
                   </span>
                 </motion.button>
 
@@ -552,8 +501,25 @@ export default function App() {
 
         {/* AI 상태 배너 — 일정 생성 직후 캘린더로 자동 전환돼도 사라지지 않도록 App 레벨에서 렌더 */}
         <AnimatePresence>
+        {store.aiRefining && (
+          <motion.div
+            key="refining"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION.base, ease: EASE_OUT }}
+            className="flex-shrink-0 overflow-hidden flex items-center gap-2.5 px-6 py-3 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-200 dark:border-primary-800/50 text-primary-700 dark:text-primary-300 text-sm font-medium"
+          >
+            <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+            <span className="flex-1">
+              <strong className="font-bold">② Gemini</strong>가 각 날짜의 할 일을 구체화하는 중입니다.
+              일정 구조는 그대로 두고 내용만 바뀝니다.
+            </span>
+          </motion.div>
+        )}
         {store.aiNotice && (
           <motion.div
+            key="notice"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

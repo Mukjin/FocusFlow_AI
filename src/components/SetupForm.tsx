@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import type { GoalKind } from '../types';
 import { generateRuleBasedEvents } from '../lib/ruleEngine';
-import { enhanceEventsWithGemini } from '../lib/geminiClient';
 import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X, CheckCircle2, Circle, AlertCircle, Check } from 'lucide-react';
 import { DURATION, EASE_OUT, SPRING, pressable } from '../lib/motion';
 
@@ -126,29 +125,15 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
       // 1단계 완료가 화면에 인지되도록 짧게 머문 뒤 2단계로 넘어간다
       await new Promise((resolve) => setTimeout(resolve, 700));
       setGenStage('ai');
-
-      // Step 2: Gemini enhancement (뼈대 안의 내용만 채움)
-      let finalEvents = ruleEvents;
-      let aiFailed = false;
-      try {
-        finalEvents = await enhanceEventsWithGemini(ruleEvents, goals, extraRequest, store.apiKey);
-      } catch (geminiError) {
-        console.error("Gemini enhancement failed:", geminiError);
-        aiFailed = true;
-      }
-
-      // Add IDs
-      const eventsWithIds = finalEvents.map((e, i) => ({ ...e, id: Date.now() + i }));
+      // 여기서 바로 저장하고 화면을 넘긴다.
+      // AI를 기다리며 30초 동안 빈 화면을 보여주는 대신, 규칙 엔진이 만든 일정을
+      // 즉시 보여주고 구체화는 스토어에서 이어서 진행한다.
+      const eventsWithIds = ruleEvents.map((e, i) => ({ ...e, id: Date.now() + i }));
       store.setEvents(eventsWithIds);
-
-      if (aiFailed) {
-        // 뼈대는 이미 완성됐으므로 일정은 살리고, 실패 사실만 알린다.
-        // App이 일정 생성 직후 캘린더 탭으로 자동 전환하므로 스토어에 담아 화면 밖으로 사라지지 않게 한다.
-        store.setAiNotice(
-          `AI 구체화에 실패해 규칙 엔진 기본 일정 ${eventsWithIds.length}개로 생성했습니다. Gemini API 키를 확인한 뒤 'AI 할 일 구체화'를 눌러주세요.`
-        );
-      }
       onComplete();
+
+      // 화면이 바뀐 뒤에도 끊기지 않도록 스토어 액션에 맡긴다
+      void store.refineWithAI();
     } catch (error) {
       console.error("Generation error:", error);
       setNotice({ kind: 'error', text: '일정 생성 중 오류가 발생했습니다. 다시 시도해주세요.' });
