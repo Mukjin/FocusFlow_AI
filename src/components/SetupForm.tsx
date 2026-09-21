@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { generateRuleBasedEvents } from '../lib/ruleEngine';
 import { enhanceEventsWithGemini } from '../lib/geminiClient';
-import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Calendar, Target, Sparkles, X, CheckCircle2, Circle, AlertCircle, Check } from 'lucide-react';
 import { DURATION, EASE_OUT, SPRING, pressable } from '../lib/motion';
 
 const GOAL_CATEGORIES = [
@@ -150,31 +150,48 @@ export default function SetupForm({ onComplete }: { onComplete: () => void }) {
       
       {/* Progress Indicator */}
       <div className="mb-8">
-        <div className="flex items-center justify-between relative">
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full"></div>
-          <div 
-            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-primary-600 rounded-full transition-all duration-300 ease-in-out"
-            style={{ width: `${((step - 1) / 2) * 100}%` }}
-          ></div>
-          
+        <div className="relative flex items-start justify-between">
+          {/* 연결선은 첫 원의 중심(left-5)에서 마지막 원의 중심(right-5)까지만 그린다.
+              세로 위치도 컨테이너 중앙이 아니라 원의 중심(top-5 = w-10의 절반)에 맞춘다. */}
+          <div className="absolute left-5 right-5 top-5 -translate-y-1/2 h-1 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+            <motion.div
+              className="h-full bg-primary-600 rounded-full"
+              initial={false}
+              animate={{ width: `${((step - 1) / 2) * 100}%` }}
+              transition={{ duration: DURATION.base, ease: EASE_OUT }}
+            />
+          </div>
+
           {[
             { num: 1, label: '기본 정보', icon: Calendar },
             { num: 2, label: '목표 설정', icon: Target },
             { num: 3, label: 'AI 최적화', icon: Sparkles }
           ].map((s) => {
             const Icon = s.icon;
-            const isActive = step >= s.num;
+            const isDone = step > s.num;
             const isCurrent = step === s.num;
+            const isActive = isDone || isCurrent;
             return (
-              <div key={s.num} className="relative z-10 flex flex-col items-center gap-2">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                  isActive 
-                    ? 'bg-primary-600 text-white shadow-md shadow-primary-200 dark:shadow-primary-900/20' 
-                    : 'bg-white dark:bg-zinc-900 text-zinc-400 border-2 border-zinc-200 dark:border-zinc-800'
+              <div key={s.num} className="relative z-10 flex w-20 flex-col items-center gap-2">
+                <motion.div
+                  animate={{ scale: isCurrent ? 1.08 : 1 }}
+                  transition={SPRING}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                    isActive
+                      ? 'bg-primary-600 text-white shadow-md shadow-primary-200 dark:shadow-primary-900/20'
+                      : 'bg-white dark:bg-zinc-900 text-zinc-400 border-2 border-zinc-200 dark:border-zinc-800'
+                  } ${isCurrent ? 'ring-4 ring-primary-500/20' : ''}`}
+                >
+                  {/* 지나온 단계는 체크로 바꿔 어디까지 왔는지 한눈에 보이게 한다 */}
+                  {isDone ? <Check className="w-5 h-5" strokeWidth={3} /> : <Icon className="w-5 h-5" />}
+                </motion.div>
+                <span className={`text-xs font-medium whitespace-nowrap ${
+                  isCurrent
+                    ? 'text-primary-600 dark:text-primary-400 font-bold'
+                    : isDone
+                      ? 'text-zinc-600 dark:text-zinc-300'
+                      : 'text-zinc-400 dark:text-zinc-500'
                 }`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className={`text-xs font-medium ${isCurrent ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
                   {s.label}
                 </span>
               </div>
