@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # 저장소 시크릿에 VITE_GEMINI_API_KEY 가 있으면 주입한다.
+      # 없으면 규칙 엔진 전용 데모로 빌드된다.
+      #
+      # ⚠️ 이 앱은 백엔드가 없어 Vite 가 환경변수를 번들에 그대로 넣는다.
+      #    시크릿을 넣으면 배포된 JS 에서 키를 그대로 꺼낼 수 있다.
+      #    공개 데모에는 넣지 말 것. 넣으려면 Gemini 호출을 서버 함수로
+      #    먼저 옮겨야 한다. (README 의 보안 주의 참고)
+      - run: npm run build
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # 새로고침 시 404 가 나지 않도록 SPA 폴백을 둔다
+      - run: cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

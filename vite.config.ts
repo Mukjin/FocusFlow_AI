@@ -6,6 +6,9 @@ import {defineConfig, loadEnv} from 'vite';
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
+    // GitHub Pages 프로젝트 사이트는 /FocusFlow_AI/ 하위 경로로 서빙된다.
+    // 로컬 개발(dev)에서는 루트를 그대로 쓴다.
+    base: mode === 'production' ? '/FocusFlow_AI/' : '/',
     plugins: [react(), tailwindcss()],
     define: {
       // 하위 호환용. 이 값은 번들에 그대로 들어가므로 공개 배포 시 키가 노출된다.
