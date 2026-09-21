@@ -2,20 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { format, isAfter, parseISO, startOfDay, addDays } from 'date-fns';
-import { Sparkles, CheckCircle2, Circle, Clock, Calendar as CalendarIcon, GripVertical, Inbox, ExternalLink } from 'lucide-react';
+import { Sparkles, CheckCircle2, Circle, Clock, Calendar as CalendarIcon, GripVertical, Inbox, ExternalLink, Repeat } from 'lucide-react';
 import { StudyEvent } from '../types';
 import { DURATION, EASE_OUT, SPRING } from '../lib/motion';
+import { seriesColor } from '../lib/palette';
 
-const COLORS = [
-  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800',
-  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800',
-  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
-  'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-  'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300 border-pink-200 dark:border-pink-800',
-  'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border-primary-200 dark:border-primary-800',
-  'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800',
-];
 
 type ColumnType = 'upcoming' | 'today' | 'done';
 
@@ -139,11 +130,17 @@ export default function KanbanView() {
             )}
           </button>
           <div className="flex-1 min-w-0">
-            <span className={`block font-bold text-[15px] leading-snug truncate text-zinc-900 dark:text-zinc-100 ${event.completed ? 'line-through text-zinc-500 dark:text-zinc-400' : ''}`}>
-              {event.subject}
+            <span className={`flex items-center gap-2 font-bold text-[15px] leading-snug text-zinc-900 dark:text-zinc-100 ${event.completed ? 'line-through text-zinc-500 dark:text-zinc-400' : ''}`}>
+              <span
+                aria-hidden
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: event.isReview ? 'var(--color-zinc-400)' : seriesColor(event.colorIndex) }}
+              />
+              <span className="truncate">{event.subject}</span>
             </span>
-            <span className={`inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-md font-semibold border whitespace-nowrap ${COLORS[event.colorIndex % COLORS.length]}`}>
-              {event.phase}
+            <span className="inline-flex items-center gap-1.5 mt-2 text-[10px] px-2 py-0.5 rounded-md font-semibold whitespace-nowrap bg-zinc-100 dark:bg-white/[0.07] text-zinc-600 dark:text-zinc-300">
+              {event.isReview && <Repeat className="w-3 h-3" />}
+              {event.isReview ? '복습' : event.phase}
             </span>
           </div>
         </div>

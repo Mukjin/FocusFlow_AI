@@ -6,17 +6,8 @@ import { ChevronLeft, ChevronRight, Sparkles, CheckCircle2, Circle, Calendar as 
 import DayDetailPanel from './DayDetailPanel';
 import { DURATION, EASE_OUT, STAGGER, SPRING } from '../lib/motion';
 import { parseDurationToMinutes, formatMinutesToDuration } from '../lib/duration';
+import { seriesColor } from '../lib/palette';
 
-const COLORS = [
-  'bg-red-50 text-red-700 border-l-4 border-l-red-500 border-y border-r border-transparent dark:bg-red-500/10 dark:text-red-300 dark:border-l-red-500',
-  'bg-blue-50 text-blue-700 border-l-4 border-l-blue-500 border-y border-r border-transparent dark:bg-blue-500/10 dark:text-blue-300 dark:border-l-blue-500',
-  'bg-green-50 text-green-700 border-l-4 border-l-green-500 border-y border-r border-transparent dark:bg-green-500/10 dark:text-green-300 dark:border-l-green-500',
-  'bg-yellow-50 text-yellow-700 border-l-4 border-l-yellow-500 border-y border-r border-transparent dark:bg-yellow-500/10 dark:text-yellow-300 dark:border-l-yellow-500',
-  'bg-purple-50 text-purple-700 border-l-4 border-l-purple-500 border-y border-r border-transparent dark:bg-purple-500/10 dark:text-purple-300 dark:border-l-purple-500',
-  'bg-pink-50 text-pink-700 border-l-4 border-l-pink-500 border-y border-r border-transparent dark:bg-pink-500/10 dark:text-pink-300 dark:border-l-pink-500',
-  'bg-primary-50 text-primary-700 border-l-4 border-l-primary-500 border-y border-r border-transparent dark:bg-primary-500/10 dark:text-primary-300 dark:border-l-primary-500',
-  'bg-orange-50 text-orange-700 border-l-4 border-l-orange-500 border-y border-r border-transparent dark:bg-orange-500/10 dark:text-orange-300 dark:border-l-orange-500',
-];
 
 export default function CalendarView() {
   const store = usePlannerStore();
@@ -189,33 +180,37 @@ export default function CalendarView() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: DURATION.base, ease: EASE_OUT, delay: Math.min(myChipIndex * STAGGER.dense, 1.1) }}
                 whileHover={isResizing ? undefined : { scale: 1.03, transition: SPRING }}
-                className={`group/event relative text-xs px-2 py-1.5 rounded-md ${COLORS[event.colorIndex % COLORS.length]} ${event.completed ? 'opacity-50 grayscale-[0.5]' : 'hover:shadow-sm'} ${isResizing ? 'ring-2 ring-primary-500 z-20 scale-105 shadow-md' : 'cursor-grab active:cursor-grabbing'}`}
-                title={`${event.task} (${displayDuration})`}
+                className={`group/event relative flex items-center gap-2 text-xs pl-2 pr-2 py-1.5 rounded-md border border-transparent
+                  bg-zinc-50 dark:bg-white/[0.045]
+                  hover:border-zinc-200 dark:hover:border-white/10
+                  ${event.completed ? 'opacity-45' : ''}
+                  ${isResizing ? 'ring-2 ring-primary-500 z-20 shadow-md' : 'cursor-grab active:cursor-grabbing'}`}
+                title={`${event.subject} · ${event.task} (${displayDuration})`}
               >
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 overflow-hidden flex-1">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        store.toggleEventCompletion(event.id);
-                      }}
-                      className="flex-shrink-0 hover:scale-110 transition-transform focus:outline-none"
-                    >
-                      {event.completed ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      ) : (
-                        <Circle className="w-3.5 h-3.5 opacity-50 hover:opacity-100" />
-                      )}
-                    </button>
-                    <span className={`font-semibold truncate ${event.completed ? 'line-through opacity-70' : ''}`}>
-                      {event.subject}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-[10px] opacity-70 whitespace-nowrap font-medium bg-black/5 dark:bg-white/10 px-1 rounded">{displayDuration}</span>
-                    {event.aiEnhanced && <Sparkles className="w-3 h-3 flex-shrink-0 text-amber-500" />}
-                  </div>
-                </div>
+                {/* 색은 식별만 담당한다. 글자는 본문 잉크 색을 그대로 쓴다. */}
+                <span
+                  aria-hidden
+                  className="w-[3px] self-stretch rounded-full flex-shrink-0"
+                  style={{ background: event.isReview ? 'var(--color-zinc-400)' : seriesColor(event.colorIndex) }}
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); store.toggleEventCompletion(event.id); }}
+                  className="flex-shrink-0 text-zinc-400 hover:text-primary-600 dark:text-zinc-500 dark:hover:text-primary-400 transition-colors focus:outline-none"
+                  aria-label={event.completed ? '완료 취소' : '완료 표시'}
+                >
+                  {event.completed
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                    : <Circle className="w-3.5 h-3.5" />}
+                </button>
+                <span className={`font-medium truncate flex-1 min-w-0 text-zinc-700 dark:text-zinc-200 ${event.completed ? 'line-through text-zinc-400 dark:text-zinc-500' : ''}`}>
+                  {event.isReview ? '복습' : event.subject}
+                </span>
+                <span className="text-[10px] font-medium tabular-nums whitespace-nowrap text-zinc-400 dark:text-zinc-500 flex-shrink-0">
+                  {displayDuration}
+                </span>
+                {event.aiEnhanced && (
+                  <Sparkles className="w-3 h-3 flex-shrink-0 text-primary-500/70 dark:text-primary-400/70" aria-label="AI 구체화됨" />
+                )}
 
                 {/* Resize Handle */}
                 <div 

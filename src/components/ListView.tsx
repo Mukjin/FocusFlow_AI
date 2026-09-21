@@ -6,6 +6,7 @@ import { ko } from 'date-fns/locale';
 import { Sparkles, Trash2, CalendarDays, Clock, BookOpen, CheckCircle2, Circle, Inbox, ExternalLink } from 'lucide-react';
 import { DURATION, EASE_OUT, STAGGER } from '../lib/motion';
 import { parseDurationToMinutes } from '../lib/duration';
+import { seriesColor } from '../lib/palette';
 
 export default function ListView() {
   const store = usePlannerStore();
@@ -104,9 +105,11 @@ export default function ListView() {
           <div key={subject} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden">
             <div className="px-6 py-5 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/20 flex justify-between items-center">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                </div>
+                <span
+                  aria-hidden
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: seriesColor((events as any[])[0]?.colorIndex ?? 0) }}
+                />
                 {subject}
               </h3>
               <span className="text-sm font-bold bg-white dark:bg-zinc-800 px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 shadow-sm">

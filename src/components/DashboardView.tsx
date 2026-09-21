@@ -1,12 +1,42 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { usePlannerStore } from '../store/plannerStore';
 import { CountUp, AnimatedBar } from './motion/Primitives';
 import { riseIn, staggerParent, STAGGER, DURATION, EASE_OUT } from '../lib/motion';
-import { parseDurationToMinutes } from '../lib/duration';
+import { parseDurationToMinutes, splitHoursMinutes } from '../lib/duration';
+import { seriesColor } from '../lib/palette';
 import { getCurrentStreak, getLongestStreak, getRecentActivity } from '../lib/streak';
-import { CheckCircle2, Clock, Target, TrendingUp, BookOpen, Calendar as CalendarIcon, Award, Flame, Repeat } from 'lucide-react';
-import { format, parseISO, isSameDay } from 'date-fns';
+import { CheckCircle2, Clock, Target, TrendingUp, Flame, Repeat, Inbox } from 'lucide-react';
+import { parseISO, isSameDay } from 'date-fns';
+
+/* 카드 표면 — 화면 전체가 하나의 재질로 읽히도록 한 곳에서만 정의한다 */
+const CARD =
+  'bg-white dark:bg-zinc-900/60 rounded-2xl border border-zinc-200/70 dark:border-white/[0.07]';
+
+/**
+ * 숫자 하나를 크게 보여주는 타일.
+ * 장식을 넣지 않는다 — 배경 블러나 색 아이콘 타일은 데이터 의미가 없는 노이즈라
+ * 정작 읽어야 할 숫자의 무게를 깎는다. 아이콘은 한 가지 흐린 잉크 색으로 통일한다.
+ */
+function StatTile({
+  icon, label, children, sub,
+}: { icon: ReactNode; label: string; children: ReactNode; sub?: string }) {
+  return (
+    <motion.div variants={riseIn} className={`${CARD} p-5`}>
+      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
+        <span className="[&>svg]:w-4 [&>svg]:h-4">{icon}</span>
+        <span className="text-[13px] font-medium">{label}</span>
+      </div>
+      <div className="flex items-baseline gap-1.5 text-zinc-900 dark:text-white">{children}</div>
+      {sub && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">{sub}</p>}
+    </motion.div>
+  );
+}
+
+const NUM = 'text-[34px] font-bold tracking-tight tabular-nums leading-none';
+const UNIT = 'text-sm font-medium text-zinc-400 dark:text-zinc-500';
+const CARD_TITLE =
+  'text-[15px] font-bold text-zinc-900 dark:text-white flex items-center gap-2 [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:text-zinc-400';
 
 export default function DashboardView() {
   const store = usePlannerStore();
@@ -17,301 +47,222 @@ export default function DashboardView() {
   const completionRate = totalEvents > 0 ? Math.round((completedEvents / totalEvents) * 100) : 0;
 
   const totalDurationMinutes = events.reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
-  const completedDurationMinutes = events.filter(e => e.completed).reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
+  const completedDurationMinutes = events
+    .filter(e => e.completed)
+    .reduce((acc, e) => acc + parseDurationToMinutes(e.duration), 0);
+  const done = splitHoursMinutes(completedDurationMinutes);
+  const planned = splitHoursMinutes(totalDurationMinutes);
 
+  // 과목 식별 색을 같이 들고 다녀야 점과 이름이 항상 짝이 맞는다
   const subjectStats = useMemo(() => {
-    const stats: Record<string, { total: number; completed: number; duration: number }> = {};
+    const stats: Record<string, { total: number; completed: number; duration: number; colorIndex: number; isReview: boolean }> = {};
     events.forEach(e => {
       if (!stats[e.subject]) {
-        stats[e.subject] = { total: 0, completed: 0, duration: 0 };
+        stats[e.subject] = { total: 0, completed: 0, duration: 0, colorIndex: e.colorIndex, isReview: !!e.isReview };
       }
+      if (!e.isReview) stats[e.subject].isReview = false;
       stats[e.subject].total += 1;
-      if (e.completed) {
-        stats[e.subject].completed += 1;
-      }
+      if (e.completed) stats[e.subject].completed += 1;
       stats[e.subject].duration += parseDurationToMinutes(e.duration);
     });
     return Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
   }, [events]);
 
-  const todayEvents = useMemo(() => {
-    const today = new Date();
-    return events.filter(e => isSameDay(parseISO(e.date), today));
-  }, [events]);
+  const todayEvents = useMemo(
+    () => events.filter(e => isSameDay(parseISO(e.date), new Date())),
+    [events],
+  );
+  const todayCompleted = todayEvents.filter(e => e.completed).length;
+  const todayRate = todayEvents.length > 0 ? Math.round((todayCompleted / todayEvents.length) * 100) : 0;
 
-  // 실제로 완료를 누른 기록만 근거로 삼는다 (계획된 날짜가 아니라)
   const streak = useMemo(() => getCurrentStreak(events), [events]);
   const longestStreak = useMemo(() => getLongestStreak(events), [events]);
   const recentActivity = useMemo(() => getRecentActivity(events, 14), [events]);
   const maxActivity = Math.max(1, ...recentActivity.map(d => d.count));
   const reviewCount = events.filter(e => e.isReview).length;
 
-  const todayCompleted = todayEvents.filter(e => e.completed).length;
-  const todayRate = todayEvents.length > 0 ? Math.round((todayCompleted / todayEvents.length) * 100) : 0;
+  if (totalEvents === 0) {
+    return (
+      <div className="h-full m-6 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
+        <Inbox className="w-12 h-12 mb-4 text-zinc-300 dark:text-zinc-700" />
+        <p className="text-lg font-medium text-zinc-600 dark:text-zinc-300 mb-1">아직 기록할 학습이 없습니다</p>
+        <p className="text-sm">플랜 설정에서 일정을 먼저 만들어주세요.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-6 space-y-8">
-      {/* Overview Cards */}
+    <div className="h-full overflow-y-auto custom-scrollbar p-6 space-y-5">
+
+      {/* ── 숫자 타일 4개 ─────────────────────────────── */}
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
         variants={staggerParent(STAGGER.card)}
         initial="hidden"
         animate="show"
       >
-        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-primary-50 dark:bg-primary-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400 rounded-2xl">
-                <Target className="w-6 h-6" />
-              </div>
-            </div>
-            <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">총 학습 목표</h3>
-            <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={totalEvents} /></p>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">개</span>
-            </div>
-          </div>
-        </motion.div>
+        <StatTile icon={<Target />} label="전체 일정" sub={reviewCount > 0 ? `복습 ${reviewCount}회 포함` : undefined}>
+          <span className={NUM}><CountUp value={totalEvents} /></span><span className={UNIT}>개</span>
+        </StatTile>
 
-        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-2xl">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-            </div>
-            <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">완료한 학습</h3>
-            <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completedEvents} /></p>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">개</span>
-            </div>
-          </div>
-        </motion.div>
+        <StatTile icon={<CheckCircle2 />} label="완료" sub={`남은 ${totalEvents - completedEvents}개`}>
+          <span className={NUM}><CountUp value={completedEvents} /></span><span className={UNIT}>개</span>
+        </StatTile>
 
-        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-2xl">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-            </div>
-            <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">전체 달성률</h3>
-            <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completionRate} /></p>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">%</span>
-            </div>
-          </div>
-        </motion.div>
+        <StatTile icon={<TrendingUp />} label="달성률">
+          <span className={NUM}><CountUp value={completionRate} /></span><span className={UNIT}>%</span>
+        </StatTile>
 
-        <motion.div variants={riseIn} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-50 dark:bg-amber-900/20 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-2xl">
-                <Clock className="w-6 h-6" />
-              </div>
-            </div>
-            <h3 className="font-medium text-zinc-500 dark:text-zinc-400 mb-1">총 학습 시간</h3>
-            <div className="flex items-baseline gap-1">
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={Math.floor(completedDurationMinutes / 60)} /></p>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mr-1">시간</span>
-              <p className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight"><CountUp value={completedDurationMinutes % 60} /></p>
-              <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">분</span>
-            </div>
-          </div>
-        </motion.div>
+        <StatTile
+          icon={<Clock />}
+          label="학습 시간"
+          sub={`계획 ${planned.hours}시간 ${planned.minutes}분 중`}
+        >
+          <span className={NUM}><CountUp value={done.hours} /></span><span className={UNIT}>시간</span>
+          <span className={`${NUM} ml-1`}><CountUp value={done.minutes} /></span><span className={UNIT}>분</span>
+        </StatTile>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Progress Section */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <Award className="w-6 h-6 text-primary-500" />
-                오늘의 학습 현황
-              </h2>
-              <span className="px-3 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-sm font-bold">
-                {todayRate}% 달성
-              </span>
-            </div>
-            
-            <div className="mb-8">
-              <div className="flex justify-between text-sm font-medium mb-3">
-                <span className="text-zinc-500 dark:text-zinc-400">진행률</span>
-                <span className="text-zinc-900 dark:text-white">{todayCompleted} / {todayEvents.length} 완료</span>
-              </div>
-              <AnimatedBar
-                percent={todayRate}
-                trackClassName="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden"
-                className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full"
-              />
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-zinc-50/80 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50">
-                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-2">
-                  <CalendarIcon className="w-4 h-4" />
-                  <span className="text-sm font-medium">오늘의 일정</span>
-                </div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-white"><CountUp value={todayEvents.length} duration={0.8} />개</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-zinc-50/80 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50">
-                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span className="text-sm font-medium">남은 일정</span>
-                </div>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-white"><CountUp value={todayEvents.length - todayCompleted} duration={0.8} />개</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 연속 학습일 — '계획'이 아니라 '실제로 한 기록'을 보여주는 자리 */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.1 }}
-            className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <Flame className="w-6 h-6 text-orange-500" />
-                연속 학습일
-              </h2>
-              {reviewCount > 0 && (
-                <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-100 dark:border-violet-800/50">
-                  <Repeat className="w-3.5 h-3.5" />
-                  복습 {reviewCount}회 자동 배치됨
+        {/* ── 연속 학습일 + 최근 14일 ────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.08 }}
+          className={`${CARD} lg:col-span-2 p-6`}
+        >
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className={CARD_TITLE}><Flame />연속 학습일</h2>
+              <div className="flex items-baseline gap-2 mt-3">
+                <span className="text-[52px] font-bold tracking-tight tabular-nums leading-none text-zinc-900 dark:text-white">
+                  <CountUp value={streak} duration={1.2} />
                 </span>
-              )}
-            </div>
-
-            <div className="flex items-end gap-8 mb-8">
-              <div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                    <CountUp value={streak} duration={1.2} />
-                  </span>
-                  <span className="text-lg font-medium text-zinc-500 dark:text-zinc-400">일째</span>
-                </div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  {streak > 0 ? '이어서 하고 있어요' : '오늘 하나만 체크하면 시작됩니다'}
-                </p>
+                <span className="text-base font-medium text-zinc-400 dark:text-zinc-500">일째</span>
               </div>
-              <div className="pb-1">
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">최장 기록</p>
-                <p className="text-xl font-bold text-zinc-700 dark:text-zinc-300">{longestStreak}일</p>
-              </div>
+              <p className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-2">
+                {streak > 0 ? '오늘도 이어가고 있어요' : '오늘 하나만 체크하면 시작됩니다'}
+              </p>
             </div>
-
-            <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500 mb-3 uppercase tracking-wider">
-              최근 14일
-            </p>
-            <div className="flex items-end gap-1.5 h-20">
-              {recentActivity.map((day, i) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
-                  <motion.div
-                    className={`w-full rounded-md ${
-                      day.count > 0
-                        ? 'bg-orange-400 dark:bg-orange-500'
-                        : 'bg-zinc-100 dark:bg-zinc-800'
-                    } ${day.isToday ? 'ring-2 ring-primary-500 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900' : ''}`}
-                    initial={{ height: 0 }}
-                    animate={{ height: day.count > 0 ? `${Math.max(18, (day.count / maxActivity) * 100)}%` : '6px' }}
-                    transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.2 + i * 0.03 }}
-                    title={`${day.date} · ${day.count}개 완료`}
-                  />
-                  <span className={`text-[10px] ${day.isToday ? 'font-bold text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
-                    {day.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Subject Breakdown */}
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-sm border border-zinc-200/80 dark:border-zinc-800/80">
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2 mb-6">
-              <BookOpen className="w-6 h-6 text-emerald-500" />
-              과목별 학습 통계
-            </h2>
-            <div className="space-y-5">
-              {subjectStats.map(([subject, stats], i) => {
-                const rate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-                return (
-                  <motion.div
-                    key={subject}
-                    className="group"
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.15 + i * STAGGER.card }}
-                  >
-                    <div className="flex justify-between items-end mb-2">
-                      <div>
-                        <h4 className="font-bold text-zinc-800 dark:text-zinc-200">{subject}</h4>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                          총 {Math.floor(stats.duration / 60)}시간 {stats.duration % 60}분
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-zinc-900 dark:text-white">{rate}%</span>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                          {stats.completed} / {stats.total} 완료
-                        </p>
-                      </div>
-                    </div>
-                    <AnimatedBar
-                      percent={rate}
-                      delay={0.25 + i * STAGGER.card}
-                      trackClassName="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden"
-                      className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full group-hover:brightness-110"
-                    />
-                  </motion.div>
-                );
-              })}
-              {subjectStats.length === 0 && (
-                <div className="text-center py-8 text-zinc-400 dark:text-zinc-500">
-                  등록된 학습 일정이 없습니다.
-                </div>
-              )}
+            <div className="text-right">
+              <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 mb-1">최장 기록</p>
+              <p className="text-lg font-bold tabular-nums text-zinc-700 dark:text-zinc-300">{longestStreak}일</p>
             </div>
           </div>
-        </div>
 
-        {/* Right Sidebar - Recent Activity or Summary */}
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-primary-500 to-purple-600 p-8 rounded-3xl text-white shadow-md relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-8 -mb-8"></div>
-            
-            <div className="relative z-10">
-              <h3 className="text-lg font-medium text-primary-100 mb-1">전체 진행 상황</h3>
-              <div className="flex items-end gap-2 mb-6">
-                <span className="text-5xl font-bold tracking-tight"><CountUp value={completionRate} duration={1.4} /></span>
-                <span className="text-xl font-medium text-primary-200 mb-1">%</span>
+          <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 mb-2.5">최근 14일 완료 기록</p>
+          {/* 얇은 막대 · 바닥에 붙이고 위쪽만 둥글게 · 눈금선은 뒤로 물린다 */}
+          <div className="relative flex items-end gap-1.5 h-24 pb-6">
+            <div className="absolute left-0 right-0 bottom-6 h-px bg-zinc-200 dark:bg-white/10" />
+            {recentActivity.map((day, i) => (
+              <div key={day.date} className="relative flex-1 h-full flex flex-col justify-end items-center">
+                <motion.div
+                  className={`w-full rounded-t-[4px] ${
+                    day.count > 0
+                      ? 'bg-primary-500 dark:bg-primary-400'
+                      : 'bg-zinc-200 dark:bg-white/[0.08]'
+                  }`}
+                  initial={{ height: 0 }}
+                  animate={{ height: day.count > 0 ? `${Math.max(14, (day.count / maxActivity) * 100)}%` : '3px' }}
+                  transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.16 + i * 0.03 }}
+                  title={`${day.date} · ${day.count}개 완료`}
+                />
+                <span className={`absolute -bottom-0 text-[10px] tabular-nums ${
+                  day.isToday ? 'font-bold text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-zinc-600'
+                }`}>
+                  {day.label}
+                </span>
               </div>
-              
-              <div className="space-y-4">
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                  <div className="text-primary-100 text-sm mb-1">총 계획된 시간</div>
-                  <div className="font-bold text-xl">
-                    {Math.floor(totalDurationMinutes / 60)}시간 {totalDurationMinutes % 60}분
-                  </div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                  <div className="text-primary-100 text-sm mb-1">실제 학습 시간</div>
-                  <div className="font-bold text-xl">
-                    {Math.floor(completedDurationMinutes / 60)}시간 {completedDurationMinutes % 60}분
-                  </div>
-                </div>
-              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── 오늘 ──────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.14 }}
+          className={`${CARD} p-6 flex flex-col`}
+        >
+          <h2 className={CARD_TITLE}><CheckCircle2 />오늘</h2>
+
+          <div className="flex items-baseline gap-2 mt-4">
+            <span className="text-[52px] font-bold tracking-tight tabular-nums leading-none text-zinc-900 dark:text-white">
+              <CountUp value={todayRate} duration={1.2} />
+            </span>
+            <span className="text-base font-medium text-zinc-400 dark:text-zinc-500">%</span>
+          </div>
+          <p className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-2 mb-5">
+            {todayEvents.length > 0
+              ? `${todayEvents.length}개 중 ${todayCompleted}개 완료`
+              : '오늘 예정된 일정이 없습니다'}
+          </p>
+
+          <AnimatedBar
+            percent={todayRate}
+            delay={0.25}
+            trackClassName="h-2 bg-zinc-100 dark:bg-white/[0.07] rounded-full overflow-hidden"
+            className="h-full bg-primary-500 dark:bg-primary-400 rounded-full"
+          />
+
+          <div className="mt-auto pt-6 grid grid-cols-2 gap-3 text-center">
+            <div>
+              <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{todayEvents.length}</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">오늘 일정</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{todayEvents.length - todayCompleted}</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">남은 일정</p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
+
+      {/* ── 과목별 ────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: DURATION.base, ease: EASE_OUT, delay: 0.2 }}
+        className={`${CARD} p-6`}
+      >
+        <h2 className={`${CARD_TITLE} mb-6`}><Repeat />과목별 진행</h2>
+
+        <div className="space-y-5">
+          {subjectStats.map(([subject, stat], i) => {
+            const rate = stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0;
+            const d = splitHoursMinutes(stat.duration);
+            return (
+              <div key={subject}>
+                <div className="flex items-end justify-between gap-4 mb-2">
+                  {/* 색은 점이 맡고, 이름과 숫자는 본문 잉크 색을 쓴다 */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      aria-hidden
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ background: stat.isReview ? "var(--color-zinc-400)" : seriesColor(stat.colorIndex) }}
+                    />
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-100 truncate">{subject}</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                      {d.hours}시간 {d.minutes}분
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 flex-shrink-0">
+                    <span className="text-sm font-bold tabular-nums text-zinc-900 dark:text-white">{rate}%</span>
+                    <span className="text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+                      {stat.completed}/{stat.total}
+                    </span>
+                  </div>
+                </div>
+                <AnimatedBar
+                  percent={rate}
+                  delay={0.28 + i * STAGGER.card}
+                  color={stat.isReview ? "var(--color-zinc-400)" : seriesColor(stat.colorIndex)}
+                  trackClassName="h-1.5 bg-zinc-100 dark:bg-white/[0.07] rounded-full overflow-hidden"
+                  className="h-full rounded-full"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
     </div>
   );
 }

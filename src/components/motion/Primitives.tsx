@@ -49,13 +49,15 @@ interface AnimatedBarProps {
   className?: string;
   trackClassName?: string;
   delay?: number;
+  /** 막대 색을 직접 지정할 때 (과목 식별 색 등) */
+  color?: string;
 }
 
 /**
  * 0%에서 목표치까지 차오르는 진행바.
  * CSS transition만으로는 마운트 시점에 이미 최종 너비로 그려져 아무 일도 일어나지 않는다.
  */
-export function AnimatedBar({ percent, className, trackClassName, delay = 0 }: AnimatedBarProps) {
+export function AnimatedBar({ percent, className, trackClassName, delay = 0, color }: AnimatedBarProps) {
   const reduceMotion = useReducedMotion();
   const target = Math.max(0, Math.min(100, percent));
 
@@ -63,6 +65,7 @@ export function AnimatedBar({ percent, className, trackClassName, delay = 0 }: A
     <div className={trackClassName}>
       <motion.div
         className={className}
+        style={color ? { background: color } : undefined}
         initial={reduceMotion ? false : { width: 0 }}
         animate={{ width: `${target}%` }}
         transition={{ duration: DURATION.slow + 0.3, ease: EASE_OUT, delay }}
