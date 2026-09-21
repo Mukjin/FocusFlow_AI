@@ -103,11 +103,11 @@ export async function enhanceEventsWithGemini<
     counts[e.subject][e.phase] = (counts[e.subject][e.phase] || 0) + 1;
   });
 
-  const resultText = isProxyMode()
+  // 프록시는 서버에서 이미 구조화해 주므로 파싱이 필요 없다.
+  // 직접 모드만 모델의 원문을 클라이언트가 해석한다.
+  const taskMap = isProxyMode()
     ? await callViaProxy(goals, extraRequest, counts)
-    : await callDirect(goals, extraRequest, counts);
-
-  const taskMap = extractTaskMap(resultText);
+    : extractTaskMap(await callDirect(goals, extraRequest, counts));
 
   return events.map((event) => {
     const subj = String(event.subject || "").trim();
@@ -122,12 +122,12 @@ export async function enhanceEventsWithGemini<
   });
 }
 
-/** 배포본 — 서버 함수가 키를 쥐고 대신 호출한다 */
+/** 배포본 — 서버 함수가 키를 쥐고 대신 호출하고, 구조화된 결과를 돌려준다 */
 async function callViaProxy(
   goals: string[],
   extraRequest: string,
   counts: Record<string, Record<string, number>>,
-): Promise<string> {
+): Promise<Record<string, Record<string, string[]>>> {
   const res = await fetch(AI_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -138,9 +138,21 @@ async function callViaProxy(
     const detail = await res.json().catch(() => null);
     throw new Error(detail?.error || `AI 서버 오류 (${res.status})`);
   }
+
   const data = await res.json();
-  if (!data?.text) throw new Error("AI 응답이 비어있습니다.");
-  return data.text as string;
+  if (!Array.isArray(data?.items)) throw new Error("AI 응답이 비어있습니다.");
+
+  const taskMap: Record<string, Record<string, string[]>> = {};
+  data.items.forEach((item: any) => {
+    const subj = String(item?.subject ?? "").trim();
+    const ph = String(item?.phase ?? "").trim();
+    if (!subj || !ph || !Array.isArray(item?.tasks)) return;
+    taskMap[subj] ??= {};
+    taskMap[subj][ph] = item.tasks.filter(
+      (t: unknown): t is string => typeof t === "string" && t.trim().length > 0,
+    );
+  });
+  return taskMap;
 }
 
 /** 로컬 개발 — 브라우저가 .env.local 의 키로 직접 호출한다 */
@@ -170,7 +182,7 @@ async function callDirect(
   const ai = new GoogleGenAI({ apiKey });
   // 검색 그라운딩(googleSearch)은 유료 등급 전용이라 쓰지 않는다.
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: prompt,
   });
 
